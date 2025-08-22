@@ -38,7 +38,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QHBoxLayout, QLabel, QMenuBar, QMenu, QAction,
     QFrame, QGridLayout, QGroupBox, QSplitter, QTextEdit,
     QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox, QTabWidget,
-    QInputDialog, QDialog
+    QInputDialog, QDialog, QMessageBox
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor
@@ -49,7 +49,7 @@ from matplotlib.figure import Figure
 class SleepSensePlot(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SleepSense - Professional Sleep Analysis System")
+        self.setWindowTitle("SleepSense Pro - Professional Sleep Analysis System")
         
         # Get screen dimensions for responsive design
         screen = QApplication.primaryScreen()
@@ -300,6 +300,9 @@ class SleepSensePlot(QMainWindow):
         self.pleth_checkbox = QCheckBox()
 
         self.initUI()
+        
+        # Show welcome message with SleepSense Pro branding
+        self.show_welcome_message()
 
     def normalize(self, series):
         return (series - series.min()) / (series.max() - series.min())
@@ -419,6 +422,35 @@ class SleepSensePlot(QMainWindow):
         
         return pd.Series(activity, name='activity')
     
+    def show_welcome_message(self):
+        """Display welcome message with SleepSense Pro branding"""
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("Welcome to SleepSense Pro")
+        msg.setText("Welcome to SleepSense Pro")
+        msg.setInformativeText("Professional Sleep Analysis System\n\nAdvanced sleep monitoring and analysis with:\n• Multi-channel signal processing\n• EEG analysis capabilities\n• Professional medical-grade interface\n• Real-time waveform visualization\n\nReady to analyze your sleep data!")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+    
+    def show_about(self):
+        """Show about dialog for SleepSense Pro"""
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Information)
+        msg.setWindowTitle("About SleepSense Pro")
+        msg.setText("SleepSense Pro v2.0")
+        msg.setInformativeText("Professional Sleep Analysis System\n\n"
+                              "Advanced sleep monitoring and analysis software with:\n"
+                              "• Multi-channel physiological signal processing\n"
+                              "• Comprehensive EEG analysis (6 channels)\n"
+                              "• Professional medical-grade interface\n"
+                              "• Real-time waveform visualization\n"
+                              "• Advanced data security features\n"
+                              "• Responsive design for all devices\n\n"
+                              "© 2024 SleepSense Pro\n"
+                              "Professional Edition")
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.exec_()
+    
     def generate_eeg_wave(self, time, channel):
         """Generate realistic EEG waveform for different channels"""
         # Base alpha rhythm (8-13 Hz) - typical for relaxed state
@@ -500,10 +532,25 @@ class SleepSensePlot(QMainWindow):
         self.splitter = splitter  # Store reference for resizing
         
         # Status bar with analysis mode indicator
-        self.statusBar().showMessage("Ready - Loaded sleep data successfully | 📊 Analysis Mode: Full Page | Press Ctrl+M to maximize plots")
+        self.statusBar().showMessage("SleepSense Pro Ready - Loaded sleep data successfully | 📊 Analysis Mode: Full Page | Press Ctrl+M to maximize plots")
 
     def createMenuBar(self):
         menubar = self.menuBar()
+        
+        # SleepSense Pro menu
+        pro_menu = menubar.addMenu('SleepSense Pro')
+        
+        about_action = QAction('About SleepSense Pro', self)
+        about_action.triggered.connect(self.show_about)
+        pro_menu.addAction(about_action)
+        
+        pro_menu.addSeparator()
+        
+        version_action = QAction('Version 2.0 Professional', self)
+        version_action.setEnabled(False)
+        pro_menu.addAction(version_action)
+        
+        pro_menu.addSeparator()
         
         # File menu
         file_menu = menubar.addMenu('File')
@@ -634,6 +681,63 @@ class SleepSensePlot(QMainWindow):
                 border-right: 2px solid #dee2e6;
             }
         """)
+        
+        # Add SleepSense Pro branding header
+        branding_label = QLabel("SleepSense Pro")
+        branding_label.setStyleSheet("""
+            QLabel {
+                color: #2c3e50;
+                font-size: 18px;
+                font-weight: bold;
+                padding: 15px 10px;
+                background-color: #3498db;
+                color: white;
+                border-radius: 8px;
+                margin: 10px 5px;
+                text-align: center;
+            }
+        """)
+        branding_label.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(branding_label)
+        
+        # Add subtitle
+        subtitle_label = QLabel("Professional Sleep Analysis System")
+        subtitle_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-size: 11px;
+                font-weight: 500;
+                padding: 5px 10px;
+                text-align: center;
+                margin-bottom: 10px;
+            }
+        """)
+        subtitle_label.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(subtitle_label)
+        
+        # Add version info
+        version_label = QLabel("v2.0 Professional Edition")
+        version_label.setStyleSheet("""
+            QLabel {
+                color: #28a745;
+                font-size: 10px;
+                font-weight: 600;
+                padding: 3px 10px;
+                text-align: center;
+                margin-bottom: 15px;
+                background-color: #d4edda;
+                border-radius: 4px;
+                border: 1px solid #c3e6cb;
+            }
+        """)
+        version_label.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(version_label)
+        
+        # Add separator line
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setStyleSheet("QFrame { background-color: #dee2e6; margin: 10px 20px; }")
+        left_layout.addWidget(separator)
         
 
         
@@ -767,6 +871,26 @@ class SleepSensePlot(QMainWindow):
         # Add stretch to push everything to top
         left_layout.addStretch()
         
+        # Add footer branding
+        footer_separator = QFrame()
+        footer_separator.setFrameShape(QFrame.HLine)
+        footer_separator.setStyleSheet("QFrame { background-color: #dee2e6; margin: 10px 20px; }")
+        left_layout.addWidget(footer_separator)
+        
+        footer_label = QLabel("© 2024 SleepSense Pro")
+        footer_label.setStyleSheet("""
+            QLabel {
+                color: #6c757d;
+                font-size: 9px;
+                font-weight: 400;
+                padding: 5px 10px;
+                text-align: center;
+                margin-top: 5px;
+            }
+        """)
+        footer_label.setAlignment(Qt.AlignCenter)
+        left_layout.addWidget(footer_label)
+        
         return left_widget
 
     def create_wave_control(self, parent_layout, label_text, checkbox, signal_index):
@@ -876,11 +1000,38 @@ class SleepSensePlot(QMainWindow):
         right_layout = QVBoxLayout(right_widget)
         
         # Time Navigation Controls at the top
-        navigation_group = QGroupBox("Time Navigation")
+        navigation_group = QGroupBox("⏱️ Time Navigation - SleepSense Pro")
+        navigation_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 600;
+                font-size: 11px;
+                border: 2px solid #6c757d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px 0 4px;
+                color: #495057;
+            }
+        """)
         navigation_layout = QVBoxLayout(navigation_group)
+        navigation_layout.setContentsMargins(8, 8, 8, 8)  # Reduce margins
+        navigation_layout.setSpacing(4)  # Reduce spacing between elements
         
         # Time slider
         time_label = QLabel("Time Position:")
+        time_label.setStyleSheet("""
+            QLabel {
+                font-size: 10px;
+                font-weight: 500;
+                color: #495057;
+                margin-bottom: 2px;
+            }
+        """)
         navigation_layout.addWidget(time_label)
         
         self.slider = QSlider(Qt.Horizontal)
@@ -890,12 +1041,46 @@ class SleepSensePlot(QMainWindow):
         self.slider.setTickInterval(100)
         self.slider.setSingleStep(1)
         self.slider.valueChanged.connect(self.update_plot)
+        
+        # Make slider thinner and more compact
+        self.slider.setFixedHeight(20)  # Reduce height from default
+        self.slider.setStyleSheet("""
+            QSlider::groove:horizontal {
+                border: 1px solid #bdc3c7;
+                height: 4px;
+                background-color: #ecf0f1;
+                border-radius: 2px;
+                margin: 0px;
+            }
+            QSlider::handle:horizontal {
+                background-color: #3498db;
+                border: 1px solid #2980b9;
+                width: 12px;
+                height: 12px;
+                margin: -4px 0;
+                border-radius: 6px;
+            }
+            QSlider::handle:horizontal:hover {
+                background-color: #2980b9;
+                border-color: #21618c;
+            }
+        """)
         navigation_layout.addWidget(self.slider)
         
         # Time display
         self.time_display = QLabel("00:00:00 - 00:00:10")
         self.time_display.setAlignment(Qt.AlignCenter)
-        self.time_display.setStyleSheet("background-color: #ecf0f1; padding: 5px; border-radius: 3px;")
+        self.time_display.setStyleSheet("""
+            QLabel {
+                background-color: #ecf0f1; 
+                padding: 3px 8px; 
+                border-radius: 3px;
+                font-size: 10px;
+                font-weight: 500;
+                color: #495057;
+                border: 1px solid #bdc3c7;
+            }
+        """)
         navigation_layout.addWidget(self.time_display)
         
         right_layout.addWidget(navigation_group)
@@ -919,7 +1104,7 @@ class SleepSensePlot(QMainWindow):
         self.summary_canvas = FigureCanvas(self.summary_fig)
         summary_layout.addWidget(self.summary_canvas)
         
-        self.tab_widget.addTab(summary_tab, "Summary Data")
+        self.tab_widget.addTab(summary_tab, "📊 Summary Data")
         
         # Detailed view tab
         detailed_tab = QWidget()
@@ -939,7 +1124,7 @@ class SleepSensePlot(QMainWindow):
         
         detailed_layout.addWidget(self.detailed_canvas)
         
-        self.tab_widget.addTab(detailed_tab, "Detailed Waveforms")
+        self.tab_widget.addTab(detailed_tab, "🌊 Detailed Waveforms")
         
         # Initialize plots
         self.plot_signals()
@@ -1108,8 +1293,8 @@ class SleepSensePlot(QMainWindow):
             ax.legend(loc='upper right')
         
         # Set specific properties for each plot
-        self.summary_ax.set_title('SleepSense - Summary Data View', fontsize=12, fontweight='bold')
-        self.detailed_ax.set_title('SleepSense - Detailed Waveform View', fontsize=12, fontweight='bold')
+        self.summary_ax.set_title('SleepSense Pro - Summary Data View', fontsize=12, fontweight='bold')
+        self.detailed_ax.set_title('SleepSense Pro - Detailed Waveform View', fontsize=12, fontweight='bold')
         
         # Set x-axis limits for current window
         start_time = self.time.iloc[start_idx]
@@ -1291,7 +1476,7 @@ class SleepSensePlot(QMainWindow):
         
         # Update status bar with current window size and responsive mode
         mode = "Compact Mode" if self.current_is_small else "Full Mode"
-        self.statusBar().showMessage(f"Ready - {mode} - Window: {new_width}x{new_height}")
+        self.statusBar().showMessage(f"SleepSense Pro - {mode} - Window: {new_width}x{new_height}")
         
         super().resizeEvent(event)
     
@@ -1299,10 +1484,10 @@ class SleepSensePlot(QMainWindow):
         """Toggle fullscreen mode for better analysis"""
         if self.isFullScreen():
             self.showNormal()
-            self.statusBar().showMessage("Exited fullscreen mode")
+            self.statusBar().showMessage("SleepSense Pro - Exited fullscreen mode")
         else:
             self.showFullScreen()
-            self.statusBar().showMessage("Entered fullscreen mode - Press F11 to exit")
+            self.statusBar().showMessage("SleepSense Pro - Entered fullscreen mode - Press F11 to exit")
     
     def maximize_plot_area(self):
         """Maximize the plotting area by minimizing control panels"""
@@ -1320,7 +1505,7 @@ class SleepSensePlot(QMainWindow):
             self.splitter.setSizes([left_width, right_width])
             
             # Update status
-            self.statusBar().showMessage("✅ Plot area maximized - Use Ctrl+C to restore controls")
+            self.statusBar().showMessage("SleepSense Pro ✅ Plot area maximized - Use Ctrl+C to restore controls")
     
     def toggle_compact_controls(self):
         """Toggle between compact and normal control panel sizes"""
@@ -1335,7 +1520,7 @@ class SleepSensePlot(QMainWindow):
                 else:
                     left_width = max(350, int(window_width * 0.22))
                 right_width = max(500, window_width - left_width - 50)
-                self.statusBar().showMessage("✅ Controls restored to normal size")
+                self.statusBar().showMessage("SleepSense Pro ✅ Controls restored to normal size")
             else:
                 # Make compact
                 if self.is_small_screen:
@@ -1343,7 +1528,7 @@ class SleepSensePlot(QMainWindow):
                 else:
                     left_width = min(250, int(window_width * 0.12))
                 right_width = max(800, window_width - left_width - 20)
-                self.statusBar().showMessage("✅ Controls compacted - Use Ctrl+C to restore")
+                self.statusBar().showMessage("SleepSense Pro ✅ Controls compacted - Use Ctrl+C to restore")
             
             self.splitter.setSizes([left_width, right_width])
 
