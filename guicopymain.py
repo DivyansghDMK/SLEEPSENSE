@@ -30,13 +30,15 @@ The system automatically detects the format and provides mock data for missing s
 """
 
 import sys
+import os
 import pandas as pd
 import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, QSlider,
     QPushButton, QHBoxLayout, QLabel, QMenuBar, QMenu, QAction,
     QFrame, QGridLayout, QGroupBox, QSplitter, QTextEdit,
-    QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox, QTabWidget
+    QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox, QTabWidget,
+    QInputDialog, QDialog
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QIcon, QPalette, QColor
@@ -48,26 +50,68 @@ class SleepSensePlot(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("SleepSense - Professional Sleep Analysis System")
-        self.setGeometry(100, 100, 1400, 900)
         
-        # Set modern style
-        self.setStyleSheet("""
-            QMainWindow {
+        # Get screen dimensions for responsive design
+        screen = QApplication.primaryScreen()
+        screen_geometry = screen.geometry()
+        self.screen_width = screen_geometry.width()
+        self.screen_height = screen_geometry.height()
+        
+        # Responsive window sizing based on screen size
+        if self.screen_width < 1024:  # Small screens (tablets/small laptops)
+            self.setGeometry(50, 50, int(self.screen_width * 0.95), int(self.screen_height * 0.9))
+            self.setMinimumSize(800, 600)
+            self.is_small_screen = True
+        elif self.screen_width < 1440:  # Medium screens (laptops)
+            self.setGeometry(100, 100, int(self.screen_width * 0.85), int(self.screen_height * 0.85))
+            self.setMinimumSize(1000, 700)
+            self.is_small_screen = False
+        else:  # Large screens (desktops)
+            self.setGeometry(100, 100, 1600, 1000)
+            self.setMinimumSize(1200, 800)
+            self.is_small_screen = False
+        
+        # Set responsive modern style
+        base_font_size = "12px" if not self.is_small_screen else "11px"  
+        button_height = "40px" if not self.is_small_screen else "45px"  # Taller buttons for touch
+        
+        self.setStyleSheet(f"""
+            QMainWindow {{
                 background-color: #f0f0f0;
-            }
-            QMenuBar {
+            }}
+            QPushButton {{
+                min-height: {button_height};
+                font-size: {base_font_size};
+                padding: 6px 12px;
+                border-radius: 6px;
+                font-weight: 500;
+            }}
+            QLabel {{
+                font-size: {base_font_size};
+            }}
+            QCheckBox {{
+                font-size: {base_font_size};
+                spacing: 8px;
+            }}
+            QGroupBox {{
+                font-size: {base_font_size};
+                font-weight: 600;
+                padding-top: 15px;
+                margin-top: 10px;
+            }}
+            QMenuBar {{
                 background-color: #2c3e50;
                 color: white;
                 font-weight: bold;
-            }
-            QMenuBar::item:selected {
+            }}
+            QMenuBar::item:selected {{
                 background-color: #34495e;
-            }
-            QMenu {
+            }}
+            QMenu {{
                 background-color: #ecf0f1;
                 border: 1px solid #bdc3c7;
-            }
-            QPushButton {
+            }}
+            QPushButton {{
                 background-color: #3498db;
                 color: white;
                 border: none;
@@ -75,58 +119,89 @@ class SleepSensePlot(QMainWindow):
                 border-radius: 4px;
                 font-weight: bold;
                 min-width: 80px;
-            }
-            QPushButton:hover {
+            }}
+            QPushButton:hover {{
                 background-color: #2980b9;
-            }
-            QPushButton:pressed {
+            }}
+            QPushButton:pressed {{
                 background-color: #21618c;
-            }
-            QPushButton:disabled {
+            }}
+            QPushButton:disabled {{
                 background-color: #bdc3c7;
                 color: #7f8c8d;
-            }
-            QGroupBox {
+            }}
+            QGroupBox {{
                 font-weight: bold;
                 border: 2px solid #bdc3c7;
                 border-radius: 5px;
                 margin-top: 10px;
                 padding-top: 10px;
-            }
-            QGroupBox::title {
+            }}
+            QGroupBox::title {{
                 subcontrol-origin: margin;
                 left: 10px;
                 padding: 0 5px 0 5px;
-            }
-            QSlider::groove:horizontal {
+            }}
+            QSlider::groove:horizontal {{
                 border: 1px solid #bdc3c7;
                 height: 8px;
-                background: #ecf0f1;
+                background-color: #ecf0f1;
                 border-radius: 4px;
-            }
-            QSlider::handle:horizontal {
-                background: #3498db;
+            }}
+            QSlider::handle:horizontal {{
+                background-color: #3498db;
                 border: 1px solid #2980b9;
                 width: 18px;
                 margin: -2px 0;
                 border-radius: 9px;
-            }
+            }}
         """)
 
-        # Load data (adjust path)
+        # Initialize data manager for encrypted data handling
+        from data_manager import SleepDataManager
+        self.data_manager = SleepDataManager()
+        
+        # Load data (automatically detects encrypted or plain text)
         file_path = "DATA0025.TXT"
-        self.data = pd.read_csv(file_path, header=None)
+        try:
+            self.data = self.data_manager.load_data(file_path)
+        except Exception as e:
+            print(f"Failed to load data: {e}")
+            # Fallback to original method
+            self.data = pd.read_csv(file_path, header=None)
+        
+        # Ensure data is a pandas DataFrame
+        if not isinstance(self.data, pd.DataFrame):
+            print("Converting data to pandas DataFrame...")
+            if isinstance(self.data, np.ndarray):
+                self.data = pd.DataFrame(self.data)
+            else:
+                # If it's still not a DataFrame, create one from scratch
+                self.data = pd.read_csv(file_path, header=None)
+        
+        # Debug: Print data type and shape
+        print(f"Data type: {type(self.data)}")
+        print(f"Data shape: {self.data.shape if hasattr(self.data, 'shape') else 'No shape'}")
+        print(f"Data columns: {len(self.data.columns) if hasattr(self.data, 'columns') else 'No columns'}")
+        
+        # Optimize data loading for large datasets
+        if len(self.data) > 50000:  # If dataset is large
+            print("Large dataset detected - applying performance optimizations...")
+            # Use chunked processing for large datasets
+            self.chunk_size = 10000  # Process in 10k chunks
+        else:
+            self.chunk_size = len(self.data)
         
         # Detect data format and handle both current and future formats
         num_columns = len(self.data.columns)
         
         if num_columns == 10:  # Current format
             # Current format: time, body_pos, pulse, spo2, ?, ?, ?, flow, ?, ?
-            self.time = self.data[0].astype(float) / 1000  # ms to s
-            self.body_pos = self.data[1].astype(int)
-            self.pulse = self.data[2].astype(float)
-            self.spo2 = self.data[3].astype(float)
-            self.flow = self.data[7].astype(float)
+            self.time = pd.Series(self.data[0].astype(float) / 1000, name='time')  # ms to s
+            self.body_pos = pd.Series(self.data[1].astype(int), name='body_pos')
+            self.pulse = pd.Series(self.data[2].astype(float), name='pulse')
+            self.spo2 = pd.Series(self.data[3].astype(float), name='spo2')
+            self.flow = pd.Series(self.data[7].astype(float), name='flow')
             
             # Generate realistic mock waveforms for future signals
             self.snore = self.generate_snore_wave(self.time)
@@ -135,26 +210,34 @@ class SleepSensePlot(QMainWindow):
             self.pleth = self.generate_pleth_wave(self.time)
             self.activity = self.generate_activity_wave(self.time)
             
+            # Generate EEG signals
+            self.eeg_c3 = self.generate_eeg_wave(self.time, 'c3')
+            self.eeg_c4 = self.generate_eeg_wave(self.time, 'c4')
+            self.eeg_f3 = self.generate_eeg_wave(self.time, 'f3')
+            self.eeg_f4 = self.generate_eeg_wave(self.time, 'f4')
+            self.eeg_o1 = self.generate_eeg_wave(self.time, 'o1')
+            self.eeg_o2 = self.generate_eeg_wave(self.time, 'o2')
+            
         elif num_columns >= 12:  # Future format
             # Future format: time, snore, flow, thorax, abdomen, spo2, pleth, pulse, body_pos, activity, ?, ?
-            self.time = self.data[0].astype(float) / 1000  # ms to s
-            self.snore = self.data[1].astype(float)
-            self.flow = self.data[2].astype(float)
-            self.thorax = self.data[3].astype(float)
-            self.abdomen = self.data[4].astype(float)
-            self.spo2 = self.data[5].astype(float)
-            self.pleth = self.data[6].astype(float)
-            self.pulse = self.data[7].astype(float)
-            self.body_pos = self.data[8].astype(int)
-            self.activity = self.data[9].astype(int)  # 0=sleeping, 1=awake
+            self.time = pd.Series(self.data[0].astype(float) / 1000, name='time')  # ms to s
+            self.snore = pd.Series(self.data[1].astype(float), name='snore')
+            self.flow = pd.Series(self.data[2].astype(float), name='flow')
+            self.thorax = pd.Series(self.data[3].astype(float), name='thorax')
+            self.abdomen = pd.Series(self.data[4].astype(float), name='abdomen')
+            self.spo2 = pd.Series(self.data[5].astype(float), name='spo2')
+            self.pleth = pd.Series(self.data[6].astype(float), name='pleth')
+            self.pulse = pd.Series(self.data[7].astype(float), name='pulse')
+            self.body_pos = pd.Series(self.data[8].astype(int), name='body_pos')
+            self.activity = pd.Series(self.data[9].astype(int), name='activity')  # 0=sleeping, 1=awake
             
         else:
             # Fallback for unknown format
-            self.time = self.data[0].astype(float) / 1000
-            self.body_pos = np.zeros_like(self.time)
-            self.pulse = np.zeros_like(self.time)
-            self.spo2 = np.zeros_like(self.time)
-            self.flow = np.zeros_like(self.time)
+            self.time = pd.Series(self.data[0].astype(float) / 1000, name='time')
+            self.body_pos = pd.Series(np.zeros_like(self.time), name='body_pos')
+            self.pulse = pd.Series(np.zeros_like(self.time), name='pulse')
+            self.spo2 = pd.Series(np.zeros_like(self.time), name='spo2')
+            self.flow = pd.Series(np.zeros_like(self.time), name='flow')
             # Generate realistic mock waveforms
             self.snore = self.generate_snore_wave(self.time)
             self.thorax = self.generate_thorax_wave(self.time)
@@ -172,6 +255,14 @@ class SleepSensePlot(QMainWindow):
         self.abdomen_n = self.normalize(self.abdomen)
         self.pleth_n = self.normalize(self.pleth)
         self.activity_n = self.normalize(self.activity)
+        
+        # Normalize EEG signals
+        self.eeg_c3_n = self.normalize(self.eeg_c3)
+        self.eeg_c4_n = self.normalize(self.eeg_c4)
+        self.eeg_f3_n = self.normalize(self.eeg_f3)
+        self.eeg_f4_n = self.normalize(self.eeg_f4)
+        self.eeg_o1_n = self.normalize(self.eeg_o1)
+        self.eeg_o2_n = self.normalize(self.eeg_o2)
 
         # Window settings
         self.start_time = self.time.iloc[0]
@@ -188,14 +279,25 @@ class SleepSensePlot(QMainWindow):
             3: (0, -0.5, '↓', 'Down (Prone)')
         }
 
-        # Offsets for all signals (current + future)
-        self.offsets = [0, 1.2, 2.4, 3.6, 4.8, 6.0, 7.2, 8.4, 9.6]
+        # Offsets for all signals (current + future + EEG)
+        self.offsets = [0, 1.2, 2.4, 3.6, 4.8, 6.0, 7.2, 8.4, 9.6, 10.8, 12.0, 13.2, 14.4, 15.6, 16.8]
         
         # Playback state
         self.is_playing = False
         self.play_timer = QTimer()
         self.play_timer.timeout.connect(self.auto_advance)
         self.play_speed = 1.0
+        
+        # Initialize checkboxes
+        self.spo2_checkbox = QCheckBox()
+        self.pulse_checkbox = QCheckBox()
+        self.flow_checkbox = QCheckBox()
+        self.position_checkbox = QCheckBox()
+        self.activity_checkbox = QCheckBox()
+        self.snore_checkbox = QCheckBox()
+        self.thorax_checkbox = QCheckBox()
+        self.abdomen_checkbox = QCheckBox()
+        self.pleth_checkbox = QCheckBox()
 
         self.initUI()
 
@@ -203,26 +305,29 @@ class SleepSensePlot(QMainWindow):
         return (series - series.min()) / (series.max() - series.min())
     
     def generate_snore_wave(self, time):
-        """Generate realistic snore waveform with random bursts"""
-        # Base frequency for snoring (low frequency)
+        """Generate realistic snore waveform with random bursts - optimized"""
+        # Use vectorized operations for better performance
         base_freq = 0.5  # Hz
         snore = np.sin(2 * np.pi * base_freq * time) * 0.3
         
-        # Add random snore bursts
-        for i in range(0, len(time), 100):  # Every ~100 samples
-            if np.random.random() > 0.7:  # 30% chance of snore burst
-                burst_start = i
-                burst_duration = np.random.randint(50, 200)
-                burst_end = min(burst_start + burst_duration, len(time))
-                
-                # Create burst pattern
-                burst_time = time[burst_start:burst_end] - time[burst_start]
-                burst_freq = np.random.uniform(0.8, 1.5)  # Random frequency
-                burst_amp = np.random.uniform(0.5, 1.0)   # Random amplitude
-                
-                snore[burst_start:burst_end] += burst_amp * np.sin(2 * np.pi * burst_freq * burst_time)
+        # Reduce burst frequency for better performance
+        burst_interval = max(200, len(time) // 20)  # Fewer bursts
         
-        return snore
+        for i in range(0, len(time), burst_interval):
+            if np.random.random() > 0.8:  # 20% chance of snore burst
+                burst_start = i
+                burst_duration = min(100, len(time) - i)  # Limit burst duration
+                burst_end = burst_start + burst_duration
+                
+                if burst_end <= len(time):
+                    # Use vectorized operations
+                    burst_time = time[burst_start:burst_end] - time[burst_start]
+                    burst_freq = np.random.uniform(0.8, 1.5)
+                    burst_amp = np.random.uniform(0.5, 1.0)
+                    
+                    snore[burst_start:burst_end] += burst_amp * np.sin(2 * np.pi * burst_freq * burst_time)
+        
+        return pd.Series(snore, name='snore')
     
     def generate_thorax_wave(self, time):
         """Generate realistic thorax movement (breathing pattern)"""
@@ -237,7 +342,7 @@ class SleepSensePlot(QMainWindow):
         # Add small random noise
         thorax += 0.1 * np.random.randn(len(time))
         
-        return thorax
+        return pd.Series(thorax, name='thorax')
     
     def generate_abdomen_wave(self, time):
         """Generate realistic abdomen movement (slightly different from thorax)"""
@@ -254,7 +359,7 @@ class SleepSensePlot(QMainWindow):
         # Add small random noise
         abdomen += 0.08 * np.random.randn(len(time))
         
-        return abdomen
+        return pd.Series(abdomen, name='abdomen')
     
     def generate_pleth_wave(self, time):
         """Generate realistic plethysmography waveform (blood volume changes)"""
@@ -276,37 +381,88 @@ class SleepSensePlot(QMainWindow):
         # Add small noise
         pleth += 0.05 * np.random.randn(len(time))
         
-        return pleth
+        return pd.Series(pleth, name='pleth')
     
     def generate_activity_wave(self, time):
-        """Generate realistic activity pattern (sleep/wake cycles)"""
-        # Base activity level (mostly sleeping)
+        """Generate realistic activity pattern (sleep/wake cycles) - optimized"""
+        # Use vectorized operations for better performance
         activity = np.zeros_like(time)
         
-        # Add random wake periods
-        for i in range(0, len(time), 200):  # Check every ~200 samples
-            if np.random.random() > 0.85:  # 15% chance of wake period
+        # Reduce wake period frequency for better performance
+        check_interval = max(300, len(time) // 15)  # Fewer checks
+        
+        for i in range(0, len(time), check_interval):
+            if np.random.random() > 0.9:  # 10% chance of wake period
                 wake_start = i
-                wake_duration = np.random.randint(100, 500)
-                wake_end = min(wake_start + wake_duration, len(time))
+                wake_duration = min(200, len(time) - i)  # Limit duration
+                wake_end = wake_start + wake_duration
                 
-                # Create wake pattern with gradual transitions
-                for j in range(wake_start, wake_end):
-                    if j < len(time):
-                        # Gradual increase to wake level
-                        if j - wake_start < 50:
-                            activity[j] = (j - wake_start) / 50.0
-                        # Gradual decrease back to sleep
-                        elif wake_end - j < 50:
-                            activity[j] = (wake_end - j) / 50.0
-                        else:
-                            activity[j] = 1.0  # Full wake level
+                if wake_end <= len(time):
+                    # Use vectorized operations for transitions
+                    transition_length = min(30, wake_duration // 2)
+                    
+                    # Gradual increase
+                    if transition_length > 0:
+                        activity[wake_start:wake_start + transition_length] = np.linspace(0, 1, transition_length)
+                    
+                    # Full wake level
+                    if wake_duration > 2 * transition_length:
+                        activity[wake_start + transition_length:wake_end - transition_length] = 1.0
+                    
+                    # Gradual decrease
+                    if transition_length > 0:
+                        activity[wake_end - transition_length:wake_end] = np.linspace(1, 0, transition_length)
         
-        # Add small random variations
+        # Add small random variations (vectorized)
         activity += 0.05 * np.random.randn(len(time))
-        activity = np.clip(activity, 0, 1)  # Keep between 0 and 1
+        activity = np.clip(activity, 0, 1)
         
-        return activity
+        return pd.Series(activity, name='activity')
+    
+    def generate_eeg_wave(self, time, channel):
+        """Generate realistic EEG waveform for different channels"""
+        # Base alpha rhythm (8-13 Hz) - typical for relaxed state
+        alpha_freq = np.random.uniform(8, 13)  # Hz
+        
+        # Channel-specific characteristics
+        if channel in ['c3', 'c4']:  # Central channels - motor cortex
+            # Add beta rhythm (13-30 Hz) for motor areas
+            beta_freq = np.random.uniform(15, 25)
+            eeg = (0.6 * np.sin(2 * np.pi * alpha_freq * time) + 
+                   0.4 * np.sin(2 * np.pi * beta_freq * time))
+        elif channel in ['f3', 'f4']:  # Frontal channels - executive function
+            # Add theta rhythm (4-8 Hz) for frontal areas
+            theta_freq = np.random.uniform(5, 7)
+            eeg = (0.5 * np.sin(2 * np.pi * alpha_freq * time) + 
+                   0.5 * np.sin(2 * np.pi * theta_freq * time))
+        elif channel in ['o1', 'o2']:  # Occipital channels - visual cortex
+            # Stronger alpha rhythm for visual areas
+            eeg = 0.8 * np.sin(2 * np.pi * alpha_freq * time)
+        else:
+            # Default alpha rhythm
+            eeg = np.sin(2 * np.pi * alpha_freq * time)
+        
+        # Add slow delta waves (0.5-4 Hz) for deep sleep
+        delta_freq = np.random.uniform(0.5, 2)
+        eeg += 0.3 * np.sin(2 * np.pi * delta_freq * time)
+        
+        # Add realistic noise and artifacts
+        eeg += 0.1 * np.random.randn(len(time))
+        
+        # Add occasional eye movement artifacts (for frontal channels)
+        if channel in ['f3', 'f4']:
+            artifact_interval = max(500, len(time) // 10)
+            for i in range(0, len(time), artifact_interval):
+                if np.random.random() > 0.7:  # 30% chance of artifact
+                    artifact_duration = min(50, len(time) - i)
+                    artifact_end = i + artifact_duration
+                    if artifact_end <= len(time):
+                        # Eye movement artifact (slow wave)
+                        artifact_time = time[i:artifact_end] - time[i]
+                        artifact_freq = np.random.uniform(0.1, 0.5)
+                        eeg[i:artifact_end] += 0.5 * np.sin(2 * np.pi * artifact_freq * artifact_time)
+        
+        return pd.Series(eeg, name=f'eeg_{channel}')
 
     def initUI(self):
         # Create menu bar
@@ -329,11 +485,22 @@ class SleepSensePlot(QMainWindow):
         right_panel = self.createRightPanel()
         splitter.addWidget(right_panel)
         
-        # Set splitter proportions
-        splitter.setSizes([300, 1100])
+        # Full-page analysis mode - maximize plotting area
+        if self.is_small_screen:
+            # On small screens, make left panel collapsible and smaller
+            splitter.setChildrenCollapsible(True)
+            left_panel_width = min(250, int(self.screen_width * 0.20))  # Reduce left panel
+            right_panel_width = max(600, self.screen_width - left_panel_width - 30)
+            splitter.setSizes([left_panel_width, right_panel_width])
+        else:
+            # On larger screens, maximize plotting area
+            splitter.setChildrenCollapsible(False)
+            splitter.setSizes([300, 1300])  # Reduce left panel, increase right panel
         
-        # Status bar
-        self.statusBar().showMessage("Ready - Loaded sleep data successfully")
+        self.splitter = splitter  # Store reference for resizing
+        
+        # Status bar with analysis mode indicator
+        self.statusBar().showMessage("Ready - Loaded sleep data successfully | 📊 Analysis Mode: Full Page | Press Ctrl+M to maximize plots")
 
     def createMenuBar(self):
         menubar = self.menuBar()
@@ -379,6 +546,39 @@ class SleepSensePlot(QMainWindow):
         measure_action = QAction('Measurement Tool', self)
         tools_menu.addAction(measure_action)
         
+        tools_menu.addSeparator()
+        
+        frame_change_action = QAction('Change Frame Size', self)
+        frame_change_action.triggered.connect(self.show_frame_change_dialog)
+        tools_menu.addAction(frame_change_action)
+        
+        # Data Security menu
+        security_menu = menubar.addMenu('Data Security')
+        
+        secure_data_action = QAction('🔒 Secure Existing Data', self)
+        secure_data_action.triggered.connect(self.secure_existing_data)
+        security_menu.addAction(secure_data_action)
+        
+        list_files_action = QAction('📋 List Data Files', self)
+        list_files_action.triggered.connect(self.list_data_files)
+        security_menu.addAction(list_files_action)
+        
+        export_secure_action = QAction('📤 Export Secure Data', self)
+        export_secure_action.triggered.connect(self.export_secure_data)
+        security_menu.addAction(export_secure_action)
+        
+        security_menu.addSeparator()
+        
+        # Region Selection Management
+        regions_info_action = QAction('📋 Show Selected Regions', self)
+        regions_info_action.triggered.connect(self.show_selected_regions)
+        security_menu.addAction(regions_info_action)
+        
+        clear_regions_action = QAction('🗑️ Clear All Regions', self)
+        clear_regions_action.setShortcut('Ctrl+R')
+        clear_regions_action.triggered.connect(self.clear_selected_regions)
+        security_menu.addAction(clear_regions_action)
+        
         # Reports menu
         reports_menu = menubar.addMenu('Reports')
         
@@ -393,7 +593,21 @@ class SleepSensePlot(QMainWindow):
         
         fullscreen_action = QAction('Fullscreen', self)
         fullscreen_action.setShortcut('F11')
+        fullscreen_action.triggered.connect(self.toggle_fullscreen)
         view_menu.addAction(fullscreen_action)
+        
+        # Analysis view options
+        view_menu.addSeparator()
+        
+        maximize_plots_action = QAction('Maximize Plot Area', self)
+        maximize_plots_action.setShortcut('Ctrl+M')
+        maximize_plots_action.triggered.connect(self.maximize_plot_area)
+        view_menu.addAction(maximize_plots_action)
+        
+        compact_controls_action = QAction('Compact Controls', self)
+        compact_controls_action.setShortcut('Ctrl+C')
+        compact_controls_action.triggered.connect(self.toggle_compact_controls)
+        view_menu.addAction(compact_controls_action)
         
         # Help menu
         help_menu = menubar.addMenu('Help')
@@ -405,73 +619,263 @@ class SleepSensePlot(QMainWindow):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         
-        # Patient Information Group
-        patient_group = QGroupBox("Patient Information")
-        patient_layout = QGridLayout(patient_group)
+        # Responsive margins and spacing
+        if self.is_small_screen:
+            left_layout.setContentsMargins(6, 6, 6, 6)
+            left_layout.setSpacing(4)
+        else:
+            left_layout.setContentsMargins(10, 10, 10, 10)
+            left_layout.setSpacing(8)
         
-        patient_layout.addWidget(QLabel("Name:"), 0, 0)
-        patient_layout.addWidget(QLabel("Rajeev Ranjan"), 0, 1)
+        # Set left panel background and styling
+        left_widget.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa;
+                border-right: 2px solid #dee2e6;
+            }
+        """)
         
-        patient_layout.addWidget(QLabel("Date:"), 1, 0)
-        patient_layout.addWidget(QLabel("07-08-2025"), 1, 1)
+
         
-        patient_layout.addWidget(QLabel("Duration:"), 2, 0)
-        duration_label = QLabel("3 min 34 sec")
-        duration_label.setStyleSheet("color: #e74c3c; font-weight: bold;")
-        patient_layout.addWidget(duration_label, 2, 1)
+        # Respiratory Controls Group
+        respiratory_group = QGroupBox("🫁 Respiratory Controls")
+        respiratory_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 600;
+                font-size: 11px;
+                border: 2px solid #6c757d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px 0 4px;
+                color: #495057;
+            }
+        """)
+        respiratory_layout = QVBoxLayout(respiratory_group)
+        respiratory_layout.setContentsMargins(6, 6, 6, 6)
+        respiratory_layout.setSpacing(4)
         
-        # Data format information
-        patient_layout.addWidget(QLabel("Data Format:"), 3, 0)
-        self.format_label = QLabel("Current (10 cols)")
-        self.format_label.setStyleSheet("color: #27ae60; font-weight: bold;")
-        patient_layout.addWidget(self.format_label, 3, 1)
+        # Respiratory signals with zoom buttons
+        self.create_wave_control(respiratory_layout, "Airflow", self.flow_checkbox, 3)
+        self.create_wave_control(respiratory_layout, "Thorax Movement", self.thorax_checkbox, 5)
+        self.create_wave_control(respiratory_layout, "Abdomen Movement", self.abdomen_checkbox, 6)
+        self.create_wave_control(respiratory_layout, "Snore", self.snore_checkbox, 4)
         
-        left_layout.addWidget(patient_group)
+        left_layout.addWidget(respiratory_group)
         
-        # Signal Display Controls
-        signals_group = QGroupBox("Signal Display")
-        signals_layout = QVBoxLayout(signals_group)
+        # EEG Controls Group
+        eeg_group = QGroupBox("🧠 EEG Controls")
+        eeg_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 600;
+                font-size: 11px;
+                border: 2px solid #6c757d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px 0 4px;
+                color: #495057;
+            }
+        """)
+        eeg_layout = QVBoxLayout(eeg_group)
+        eeg_layout.setContentsMargins(6, 6, 6, 6)
+        eeg_layout.setSpacing(4)
         
-        self.spo2_checkbox = QCheckBox("SpO2 (Oxygen Saturation)")
-        self.spo2_checkbox.setChecked(True)
-        signals_layout.addWidget(self.spo2_checkbox)
+        # Create EEG signal checkboxes and controls
+        self.eeg_c3_checkbox = QCheckBox()
+        self.eeg_c4_checkbox = QCheckBox()
+        self.eeg_f3_checkbox = QCheckBox()
+        self.eeg_f4_checkbox = QCheckBox()
+        self.eeg_o1_checkbox = QCheckBox()
+        self.eeg_o2_checkbox = QCheckBox()
         
-        self.pulse_checkbox = QCheckBox("Pulse (Heart Rate)")
-        self.pulse_checkbox.setChecked(True)
-        signals_layout.addWidget(self.pulse_checkbox)
+        # EEG signals with zoom buttons
+        self.create_wave_control(eeg_layout, "C3-A2", self.eeg_c3_checkbox, 9)
+        self.create_wave_control(eeg_layout, "C4-A1", self.eeg_c4_checkbox, 10)
+        self.create_wave_control(eeg_layout, "F3-A2", self.eeg_f3_checkbox, 11)
+        self.create_wave_control(eeg_layout, "F4-A1", self.eeg_f4_checkbox, 12)
+        self.create_wave_control(eeg_layout, "O1-A2", self.eeg_o1_checkbox, 13)
+        self.create_wave_control(eeg_layout, "O2-A1", self.eeg_o2_checkbox, 14)
         
-        self.flow_checkbox = QCheckBox("Airflow")
-        self.flow_checkbox.setChecked(True)
-        signals_layout.addWidget(self.flow_checkbox)
+        left_layout.addWidget(eeg_group)
         
-        self.position_checkbox = QCheckBox("Body Position")
-        self.position_checkbox.setChecked(True)
-        signals_layout.addWidget(self.position_checkbox)
+        # Other Physiological Controls Group
+        other_group = QGroupBox("💓 Other Physiological")
+        other_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: 600;
+                font-size: 11px;
+                border: 2px solid #6c757d;
+                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                background-color: white;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 8px;
+                padding: 0 4px 0 4px;
+                color: #495057;
+            }
+        """)
+        other_layout = QVBoxLayout(other_group)
+        other_layout.setContentsMargins(6, 6, 6, 6)
+        other_layout.setSpacing(4)
         
-        self.activity_checkbox = QCheckBox("Activity")
-        self.activity_checkbox.setChecked(True)
-        signals_layout.addWidget(self.activity_checkbox)
+        # Other signals with zoom buttons
+        self.create_wave_control(other_layout, "SpO2 (Oxygen Saturation)", self.spo2_checkbox, 2)
+        self.create_wave_control(other_layout, "Pulse (Heart Rate)", self.pulse_checkbox, 1)
+        self.create_wave_control(other_layout, "Body Position", self.position_checkbox, 0)
+        self.create_wave_control(other_layout, "Activity", self.activity_checkbox, 8)
+        self.create_wave_control(other_layout, "Plethysmography", self.pleth_checkbox, 7)
         
-        # Future signals checkboxes
-        self.snore_checkbox = QCheckBox("Snore")
-        self.snore_checkbox.setChecked(True)  # Enabled to show generated waves
-        signals_layout.addWidget(self.snore_checkbox)
+        # Connect checkbox changes to plot updates with debouncing
+        self.spo2_checkbox.toggled.connect(self.debounced_update_plots)
+        self.pulse_checkbox.toggled.connect(self.debounced_update_plots)
+        self.flow_checkbox.toggled.connect(self.debounced_update_plots)
+        self.position_checkbox.toggled.connect(self.debounced_update_plots)
+        self.activity_checkbox.toggled.connect(self.debounced_update_plots)
+        self.snore_checkbox.toggled.connect(self.debounced_update_plots)
+        self.thorax_checkbox.toggled.connect(self.debounced_update_plots)
+        self.abdomen_checkbox.toggled.connect(self.debounced_update_plots)
+        self.pleth_checkbox.toggled.connect(self.debounced_update_plots)
         
-        self.thorax_checkbox = QCheckBox("Thorax Movement")
-        self.thorax_checkbox.setChecked(True)  # Enabled to show generated waves
-        signals_layout.addWidget(self.thorax_checkbox)
+        # Connect EEG checkboxes
+        self.eeg_c3_checkbox.toggled.connect(self.debounced_update_plots)
+        self.eeg_c4_checkbox.toggled.connect(self.debounced_update_plots)
+        self.eeg_f3_checkbox.toggled.connect(self.debounced_update_plots)
+        self.eeg_f4_checkbox.toggled.connect(self.debounced_update_plots)
+        self.eeg_o1_checkbox.toggled.connect(self.debounced_update_plots)
+        self.eeg_o2_checkbox.toggled.connect(self.debounced_update_plots)
+
+        left_layout.addWidget(other_group)
         
-        self.abdomen_checkbox = QCheckBox("Abdomen Movement")
-        self.abdomen_checkbox.setChecked(True)  # Enabled to show generated waves
-        signals_layout.addWidget(self.abdomen_checkbox)
+
         
-        self.pleth_checkbox = QCheckBox("Plethysmography")
-        self.pleth_checkbox.setChecked(True)  # Enabled to show generated waves
-        signals_layout.addWidget(self.pleth_checkbox)
+
         
-        left_layout.addWidget(signals_group)
+        # Add stretch to push everything to top
+        left_layout.addStretch()
         
-        # Time Navigation Controls
+        return left_widget
+
+    def create_wave_control(self, parent_layout, label_text, checkbox, signal_index):
+        """Create a wave control with checkbox and integrated toggle zoom button"""
+        control_layout = QHBoxLayout()
+        control_layout.setContentsMargins(2, 2, 2, 2)
+        control_layout.setSpacing(6)
+        
+        # Checkbox with improved styling
+        checkbox.setChecked(True)
+        checkbox.setStyleSheet("""
+            QCheckBox {
+                spacing: 4px;
+                font-size: 10px;
+            }
+            QCheckBox::indicator {
+                width: 16px;
+                height: 16px;
+                border: 2px solid #6c757d;
+                border-radius: 3px;
+                background-color: white;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #28a745;
+                border-color: #20c997;
+                image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEwIDNMNC41IDguNUwyIDYiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+Cjwvc3ZnPgo=);
+            }
+            QCheckBox::indicator:hover {
+                border-color: #495057;
+            }
+        """)
+        control_layout.addWidget(checkbox)
+        
+        # Label with improved styling and responsive sizing
+        label = QLabel(label_text)
+        label.setStyleSheet("""
+            QLabel {
+                color: #495057;
+                font-weight: 500;
+                font-size: 10px;
+                padding: 2px;
+                background-color: transparent;
+            }
+        """)
+        if self.is_small_screen:
+            label.setMinimumWidth(90)  # Smaller labels on small screens
+        else:
+            label.setMinimumWidth(110)
+        control_layout.addWidget(label)
+        
+        # Create integrated toggle button for zoom control
+        zoom_toggle_btn = QPushButton("▲")
+        
+        # Responsive button sizing
+        if self.is_small_screen:
+            zoom_toggle_btn.setFixedSize(24, 24)
+        else:
+            zoom_toggle_btn.setFixedSize(28, 28)
+        zoom_toggle_btn.setCheckable(True)  # Make it a toggle button
+        zoom_toggle_btn.setChecked(False)
+        
+        # Store zoom state for this signal
+        if not hasattr(self, 'zoom_states'):
+            self.zoom_states = {}
+        self.zoom_states[signal_index] = False  # False = zoomed out, True = zoomed in
+        
+        # Improved style for toggle button
+        zoom_toggle_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #6c757d;
+                color: white;
+                border: 2px solid #495057;
+                border-radius: 4px;
+                font-weight: 700;
+                font-size: 12px;
+                min-width: 0px;
+                padding: 0px;
+            }
+            QPushButton:checked {
+                background-color: #28a745;
+                border-color: #20c997;
+            }
+            QPushButton:hover {
+                background-color: #495057;
+                border-color: #343a40;
+            }
+            QPushButton:checked:hover {
+                background-color: #20c997;
+                border-color: #1ea085;
+            }
+        """)
+        
+        # Connect toggle functionality
+        zoom_toggle_btn.toggled.connect(lambda checked, idx=signal_index: self.toggle_zoom(idx, checked))
+        
+        control_layout.addWidget(zoom_toggle_btn)
+        
+        parent_layout.addLayout(control_layout)
+        
+        # Store the toggle button for later reference
+        if not hasattr(self, 'zoom_toggles'):
+            self.zoom_toggles = {}
+        self.zoom_toggles[signal_index] = zoom_toggle_btn
+
+    def createRightPanel(self):
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        
+        # Time Navigation Controls at the top
         navigation_group = QGroupBox("Time Navigation")
         navigation_layout = QVBoxLayout(navigation_group)
         
@@ -494,70 +898,7 @@ class SleepSensePlot(QMainWindow):
         self.time_display.setStyleSheet("background-color: #ecf0f1; padding: 5px; border-radius: 3px;")
         navigation_layout.addWidget(self.time_display)
         
-        left_layout.addWidget(navigation_group)
-        
-        # Playback Controls
-        playback_group = QGroupBox("Playback Controls")
-        playback_layout = QVBoxLayout(playback_group)
-        
-        # Play/Pause button
-        self.play_button = QPushButton("▶ Play")
-        self.play_button.clicked.connect(self.togglePlayback)
-        playback_layout.addWidget(self.play_button)
-        
-        # Speed control
-        speed_layout = QHBoxLayout()
-        speed_layout.addWidget(QLabel("Speed:"))
-        self.speed_combo = QComboBox()
-        self.speed_combo.addItems(["0.5x", "1x", "2x", "5x"])
-        self.speed_combo.setCurrentText("1x")
-        self.speed_combo.currentTextChanged.connect(self.changeSpeed)
-        speed_layout.addWidget(self.speed_combo)
-        playback_layout.addLayout(speed_layout)
-        
-        left_layout.addWidget(playback_group)
-        
-        # Window Size Controls
-        window_group = QGroupBox("Window Size")
-        window_layout = QGridLayout(window_group)
-        
-        window_sizes = [5, 10, 15, 30, 60, 120, 300]
-        for i, size in enumerate(window_sizes):
-            row = i // 2
-            col = i % 2
-            label = f"{size//60}m" if size >= 60 else f"{size}s"
-            btn = QPushButton(label)
-            btn.clicked.connect(lambda _, s=size: self.change_window_size(s))
-            if size == 10:  # Highlight default
-                btn.setStyleSheet("background-color: #27ae60;")
-            window_layout.addWidget(btn, row, col)
-        
-        left_layout.addWidget(window_group)
-        
-        # Zoom Controls
-        zoom_group = QGroupBox("Zoom Controls")
-        zoom_layout = QHBoxLayout(zoom_group)
-        
-        zoom_out_btn = QPushButton("🔍-")
-        zoom_out_btn.setFixedWidth(60)
-        zoom_out_btn.clicked.connect(self.zoom_out)
-        zoom_layout.addWidget(zoom_out_btn)
-        
-        zoom_in_btn = QPushButton("🔍+")
-        zoom_in_btn.setFixedWidth(60)
-        zoom_in_btn.clicked.connect(self.zoom_in)
-        zoom_layout.addWidget(zoom_in_btn)
-        
-        left_layout.addWidget(zoom_group)
-        
-        # Add stretch to push everything to top
-        left_layout.addStretch()
-        
-        return left_widget
-
-    def createRightPanel(self):
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
+        right_layout.addWidget(navigation_group)
         
         # Create tab widget for different views
         self.tab_widget = QTabWidget()
@@ -573,8 +914,8 @@ class SleepSensePlot(QMainWindow):
         summary_data.setStyleSheet("background-color: white; border: 1px solid #bdc3c7;")
         summary_layout.addWidget(summary_data)
         
-        # Create matplotlib figure for summary
-        self.summary_fig = Figure(figsize=(12, 4))
+        # Create matplotlib figure for summary - full page analysis
+        self.summary_fig = Figure(figsize=(16, 6))  # Increased size for better analysis
         self.summary_canvas = FigureCanvas(self.summary_fig)
         summary_layout.addWidget(self.summary_canvas)
         
@@ -584,9 +925,18 @@ class SleepSensePlot(QMainWindow):
         detailed_tab = QWidget()
         detailed_layout = QVBoxLayout(detailed_tab)
         
-        # Create matplotlib figure for detailed view
-        self.detailed_fig = Figure(figsize=(12, 8))
+        # Create matplotlib figure for detailed view - full page analysis
+        self.detailed_fig = Figure(figsize=(16, 10))  # Increased size for better analysis
         self.detailed_canvas = FigureCanvas(self.detailed_fig)
+        
+        # Add tooltip to explain region selection
+        self.detailed_canvas.setToolTip(
+            "🖱️  Click and drag to select regions (like turning lights on/off)\n"
+            "💡 Selected regions are highlighted in blue\n"
+            "⌨️  Press Ctrl+R to clear all regions\n"
+            "📋 Use Data Security menu to manage selections"
+        )
+        
         detailed_layout.addWidget(self.detailed_canvas)
         
         self.tab_widget.addTab(detailed_tab, "Detailed Waveforms")
@@ -601,6 +951,15 @@ class SleepSensePlot(QMainWindow):
         return right_widget
 
     def plot_signals(self):
+        """Initialize plots with performance optimizations"""
+        # Configure matplotlib for better performance
+        import matplotlib.pyplot as plt
+        try:
+            plt.style.use('fast')  # Use fast style if available
+        except:
+            # Fallback to default style if 'fast' is not available
+            pass
+        
         # Summary plot
         self.summary_ax = self.summary_fig.add_subplot(111)
         self.summary_fig.subplots_adjust(bottom=0.2, top=0.85)
@@ -609,79 +968,220 @@ class SleepSensePlot(QMainWindow):
         self.detailed_ax = self.detailed_fig.add_subplot(111)
         self.detailed_fig.subplots_adjust(bottom=0.1, top=0.9)
         
+        # Performance optimizations
+        self.summary_ax.set_facecolor('#f8f9fa')
+        self.detailed_ax.set_facecolor('#f8f9fa')
+        
+        # Initialize region selection variables
+        self.selected_regions = []  # List to store selected regions
+        self.is_selecting = False   # Flag to track selection state
+        self.selection_start = None # Start point of selection
+        self.selection_rect = None  # Rectangle patch for selection
+        
+        # Connect mouse events for region selection
+        self.detailed_canvas.mpl_connect('button_press_event', self.on_mouse_press)
+        self.detailed_canvas.mpl_connect('button_release_event', self.on_mouse_release)
+        self.detailed_canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        
+        # Initialize plot bounds tracking
+        self._last_plot_bounds = (0, 0)
+        
         self.update_plots()
 
     def update_plots(self):
-        # Update summary plot
+        """Optimized plot update with reduced redraws and better performance"""
+        # Only update if plots are visible
+        if not hasattr(self, 'summary_ax') or not hasattr(self, 'detailed_ax'):
+            return
+            
+        # Clear plots efficiently
         self.summary_ax.clear()
-        
-        # Plot normalized signals with offsets
-        if self.position_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.body_pos_n + self.offsets[0], color='black', label='Body Position', linewidth=2)
-        if self.pulse_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.pulse_n + self.offsets[1], color='red', label='Pulse', linewidth=2)
-        if self.spo2_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.spo2_n + self.offsets[2], color='green', label='SpO2', linewidth=2)
-        if self.flow_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.flow_n + self.offsets[3], color='blue', label='Airflow', linewidth=2)
-        if self.snore_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.snore_n + self.offsets[4], color='purple', label='Snore', linewidth=2)
-        if self.thorax_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.thorax_n + self.offsets[5], color='orange', label='Thorax', linewidth=2)
-        if self.abdomen_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.abdomen_n + self.offsets[6], color='brown', label='Abdomen', linewidth=2)
-        if self.pleth_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.pleth_n + self.offsets[7], color='pink', label='Pleth', linewidth=2)
-        if self.activity_checkbox.isChecked():
-            self.summary_ax.plot(self.time, self.activity_n + self.offsets[8], color='cyan', label='Activity', linewidth=2)
-
-        # Y-axis labels for all signals
-        all_signals = [self.body_pos_n, self.pulse_n, self.spo2_n, self.flow_n, 
-                      self.snore_n, self.thorax_n, self.abdomen_n, self.pleth_n, self.activity_n]
-        yticks_pos = [np.mean(sig) + offset for sig, offset in zip(all_signals, self.offsets)]
-        yticks_labels = ['Body Position', 'Pulse (BPM)', 'SpO2 (%)', 'Airflow', 
-                        'Snore', 'Thorax', 'Abdomen', 'Pleth', 'Activity']
-        self.summary_ax.set_yticks(yticks_pos)
-        self.summary_ax.set_yticklabels(yticks_labels, fontsize=10)
-        self.summary_ax.set_ylim(-0.5, max(self.offsets) + 1)
-        self.summary_ax.set_xlabel('Time (s)')
-        self.summary_ax.set_title('SleepSense - Summary Data View', fontsize=14, fontweight='bold')
-        self.summary_ax.grid(True, alpha=0.3)
-
-        # Update detailed plot
         self.detailed_ax.clear()
         
-        # Plot detailed waveforms
+        # Get current window limits for efficient plotting
+        # Calculate slider position as a percentage (0-100)
+        slider_percent = self.slider.value() / 100.0
+        
+        # Calculate start index based on slider position
+        # Ensure we don't go beyond the data bounds
+        max_start_idx = max(0, len(self.time) - 1000)  # Leave at least 1000 samples for the window
+        start_idx = int(slider_percent * max_start_idx)
+        start_idx = max(0, min(start_idx, max_start_idx))
+        
+        # Calculate actual sampling rate from data
+        if len(self.time) > 1:
+            sampling_rate = 1.0 / (self.time.iloc[1] - self.time.iloc[0])  # Hz
+            window_samples = int(self.window_size * sampling_rate)
+        else:
+            window_samples = 1000  # Fallback
+            
+        # Ensure end_idx doesn't exceed data bounds
+        end_idx = min(len(self.time), start_idx + window_samples)
+        
+        # If the window is too small, adjust start_idx
+        if end_idx - start_idx < 100:  # Minimum window size
+            start_idx = max(0, end_idx - 1000)
+        
+        # Use only visible data range for better performance
+        time_window = self.time.iloc[start_idx:end_idx]
+        
+        # Plot signals efficiently with reduced data points
         if self.position_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.body_pos_n + self.offsets[0], color='black', label='Body Position', linewidth=1.5)
+            self.plot_body_position_simple(self.summary_ax, self.offsets[0], start_idx, end_idx)
+            self.plot_body_position_simple(self.detailed_ax, self.offsets[0], start_idx, end_idx)
+            
         if self.pulse_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.pulse_n + self.offsets[1], color='red', label='Pulse', linewidth=1.5)
+            pulse_window = self.pulse_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, pulse_window + self.offsets[1], color='#FF6B6B', label='Pulse', linewidth=0.8)
+            self.detailed_ax.plot(time_window, pulse_window + self.offsets[1], color='#FF6B6B', label='Pulse', linewidth=0.6)
+            
         if self.spo2_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.spo2_n + self.offsets[2], color='green', label='SpO2', linewidth=1.5)
+            spo2_window = self.spo2_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, spo2_window + self.offsets[2], color='#4ECDC4', label='SpO2', linewidth=0.8)
+            self.detailed_ax.plot(time_window, spo2_window + self.offsets[2], color='#4ECDC4', label='SpO2', linewidth=0.6)
+            
         if self.flow_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.flow_n + self.offsets[3], color='blue', label='Airflow', linewidth=1.5)
+            flow_window = self.flow_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, flow_window + self.offsets[3], color='#45B7D1', label='Airflow', linewidth=0.8)
+            self.detailed_ax.plot(time_window, flow_window + self.offsets[3], color='#45B7D1', label='Airflow', linewidth=0.6)
+            
         if self.snore_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.snore_n + self.offsets[4], color='purple', label='Snore', linewidth=1.5)
+            snore_window = self.snore_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, snore_window + self.offsets[4], color='#96CEB4', label='Snore', linewidth=0.8)
+            self.detailed_ax.plot(time_window, snore_window + self.offsets[4], color='#96CEB4', label='Snore', linewidth=0.6)
+            
         if self.thorax_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.thorax_n + self.offsets[5], color='orange', label='Thorax', linewidth=1.5)
+            thorax_window = self.thorax_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, thorax_window + self.offsets[5], color='#FFEAA7', label='Thorax', linewidth=0.8)
+            self.detailed_ax.plot(time_window, thorax_window + self.offsets[5], color='#FFEAA7', label='Thorax', linewidth=0.6)
+            
         if self.abdomen_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.abdomen_n + self.offsets[6], color='brown', label='Abdomen', linewidth=1.5)
+            abdomen_window = self.abdomen_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, abdomen_window + self.offsets[6], color='#DDA0DD', label='Abdomen', linewidth=0.8)
+            self.detailed_ax.plot(time_window, abdomen_window + self.offsets[6], color='#DDA0DD', label='Abdomen', linewidth=0.6)
+            
         if self.pleth_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.pleth_n + self.offsets[7], color='pink', label='Pleth', linewidth=1.5)
+            pleth_window = self.pleth_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, pleth_window + self.offsets[7], color='#F8BBD9', label='Pleth', linewidth=0.8)
+            self.detailed_ax.plot(time_window, pleth_window + self.offsets[7], color='#F8BBD9', label='Pleth', linewidth=0.6)
+            
         if self.activity_checkbox.isChecked():
-            self.detailed_ax.plot(self.time, self.activity_n + self.offsets[8], color='cyan', label='Activity', linewidth=1.5)
+            # Simplified activity display for better performance
+            self.plot_activity_simple(self.summary_ax, self.offsets[8], start_idx, end_idx)
+            self.plot_activity_simple(self.detailed_ax, self.offsets[8], start_idx, end_idx)
+        
+        # Plot EEG signals if checked - using bright neon colors for dark mode visibility
+        if hasattr(self, 'eeg_c3_checkbox') and self.eeg_c3_checkbox.isChecked():
+            eeg_c3_window = self.eeg_c3_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_c3_window + 10.8, color='#00FFFF', label='EEG C3', linewidth=0.8)
+            self.detailed_ax.plot(time_window, eeg_c3_window + 10.8, color='#00FFFF', label='EEG C3', linewidth=0.6)
+            
+        if hasattr(self, 'eeg_c4_checkbox') and self.eeg_c4_checkbox.isChecked():
+            eeg_c4_window = self.eeg_c4_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_c4_window + 12.0, color='#FF00FF', label='EEG C4', linewidth=0.8)
+            self.detailed_ax.plot(time_window, eeg_c4_window + 12.0, color='#FF00FF', label='EEG C4', linewidth=0.6)
+            
+        if hasattr(self, 'eeg_f3_checkbox') and self.eeg_f3_checkbox.isChecked():
+            eeg_f3_window = self.eeg_f3_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_f3_window + 13.2, color='#FFFF00', label='EEG F3', linewidth=0.8)
+            self.detailed_ax.plot(time_window, eeg_f3_window + 13.2, color='#FFFF00', label='EEG F3', linewidth=0.6)
+            
+        if hasattr(self, 'eeg_f4_checkbox') and self.eeg_f4_checkbox.isChecked():
+            eeg_f4_window = self.eeg_f4_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_f4_window + 14.4, color='#00FF00', label='EEG F4', linewidth=0.8)
+            self.detailed_ax.plot(time_window, eeg_f4_window + 14.4, color='#00FF00', label='EEG F4', linewidth=0.6)
+            
+        if hasattr(self, 'eeg_o1_checkbox') and self.eeg_o1_checkbox.isChecked():
+            eeg_o1_window = self.eeg_o1_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_o1_window + 15.6, color='#FFA500', label='EEG O1', linewidth=0.8)
+            self.detailed_ax.plot(time_window, eeg_o1_window + 15.6, color='#FFA500', label='EEG O1', linewidth=0.6)
+            
+        if hasattr(self, 'eeg_o2_checkbox') and self.eeg_o2_checkbox.isChecked():
+            eeg_o2_window = self.eeg_o2_n.iloc[start_idx:end_idx]
+            self.summary_ax.plot(time_window, eeg_o2_window + 16.8, color='#FF1493', label='EEG O2', linewidth=0.6)
+            self.detailed_ax.plot(time_window, eeg_o2_window + 16.8, color='#FF1493', label='EEG O2', linewidth=0.6)
 
-        self.detailed_ax.set_yticks(yticks_pos)
-        self.detailed_ax.set_yticklabels(yticks_labels, fontsize=10)
-        self.detailed_ax.set_ylim(-0.5, max(self.offsets) + 1)
-        self.detailed_ax.set_xlabel('Time (s)')
-        self.detailed_ax.set_title('SleepSense - Detailed Waveform View', fontsize=14, fontweight='bold')
-        self.detailed_ax.grid(True, alpha=0.3)
-        self.detailed_ax.legend()
+        # Set common plot properties efficiently
+        for ax in [self.summary_ax, self.detailed_ax]:
+            ax.set_ylim(-0.5, max(self.offsets) + 1)
+            ax.grid(True, alpha=0.3)
+            ax.legend(loc='upper right')
+        
+        # Set specific properties for each plot
+        self.summary_ax.set_title('SleepSense - Summary Data View', fontsize=12, fontweight='bold')
+        self.detailed_ax.set_title('SleepSense - Detailed Waveform View', fontsize=12, fontweight='bold')
+        
+        # Set x-axis limits for current window
+        start_time = self.time.iloc[start_idx]
+        end_time = self.time.iloc[end_idx-1] if end_idx > start_idx else start_time + self.window_size
+        self.summary_ax.set_xlim(start_time, end_time)
+        self.detailed_ax.set_xlim(start_time, end_time)
 
-        # Add arrows for body position
-        if self.position_checkbox.isChecked():
-            self.add_position_arrows()
+    def plot_body_position_simple(self, ax, offset, start_idx, end_idx):
+        """Optimized body position plotting without heavy annotations"""
+        # Plot only the visible window
+        time_window = self.time.iloc[start_idx:end_idx]
+        pos_window = self.body_pos_n.iloc[start_idx:end_idx]
+        ax.plot(time_window, pos_window + offset, color='#FFFFFF', linewidth=0.8, label='Body Position')
+        
+        # Add only a few key position labels for performance
+        if end_idx - start_idx > 100:  # Only add labels if window is large enough
+            step = (end_idx - start_idx) // 5  # Show max 5 labels
+            for i in range(start_idx, end_idx, step):
+                if i < len(self.body_pos):
+                    pos_value = int(self.body_pos.iloc[i])
+                    pos_label = ['Supine', 'Left', 'Right', 'Prone', 'Upright'][pos_value] if pos_value < 5 else f'Pos {pos_value}'
+                    ax.annotate(pos_label, 
+                               xy=(self.time.iloc[i], self.body_pos_n.iloc[i] + offset + 0.1),
+                               fontsize=8, color='#FFFFFF', ha='center', weight='bold')
+
+    def plot_body_position_with_labels(self, ax, offset):
+        """Plot body position with actual labels instead of numbers"""
+        # Map numeric positions to labels
+        position_labels = {
+            0: 'Supine',
+            1: 'Left',
+            2: 'Right', 
+            3: 'Down (Prone)',
+            4: 'Up (Upright)'
+        }
+        
+        # Plot the position line
+        ax.plot(self.time, self.body_pos_n + offset, color='black', linewidth=0.8, label='Body Position')
+        
+        # Add position labels at regular intervals
+        label_interval = max(1, len(self.time) // 20)  # Show ~20 labels
+        
+        for i in range(0, len(self.time), label_interval):
+            if i < len(self.time):
+                pos_value = int(self.body_pos.iloc[i])
+                pos_label = position_labels.get(pos_value, f'Pos {pos_value}')
+                
+                # Position the label above the line
+                ax.annotate(pos_label, 
+                           xy=(self.time.iloc[i], self.body_pos_n.iloc[i] + offset + 0.1),
+                           xytext=(self.time.iloc[i], self.body_pos_n.iloc[i] + offset + 0.3),
+                           fontsize=8, color='black', ha='center',
+                           arrowprops=dict(arrowstyle='->', color='black', lw=1))
+
+    def plot_spo2_with_values(self, ax, offset):
+        """Plot SpO2 with numeric values displayed"""
+        # Plot the SpO2 line
+        ax.plot(self.time, self.spo2_n + offset, color='green', linewidth=0.8, label='SpO2')
+        
+        # Add numeric SpO2 values at regular intervals
+        value_interval = max(1, len(self.time) // 15)  # Show ~15 values
+        
+        for i in range(0, len(self.time), value_interval):
+            if i < len(self.time):
+                spo2_value = int(self.spo2.iloc[i])
+                
+                # Position the value above the line
+                ax.annotate(f'{spo2_value}%', 
+                           xy=(self.time.iloc[i], self.spo2_n.iloc[i] + offset + 0.1),
+                           xytext=(self.time.iloc[i], self.spo2_n.iloc[i] + offset + 0.3),
+                           fontsize=8, color='green', ha='center', weight='bold',
+                           arrowprops=dict(arrowstyle='->', color='green', lw=1))
 
     def add_position_arrows(self):
         arrow_y = self.offsets[0] + 0.5
@@ -705,56 +1205,149 @@ class SleepSensePlot(QMainWindow):
                     color='blue',
                     ha='center',
                     va='center',
-                    arrowprops=dict(arrowstyle='->', color='green', lw=2)
+                    arrowprops=dict(arrowstyle='->', color='green', lw=1)
                 )
 
     def update_plot(self):
+        """Optimized plot update with reduced redraws"""
         slider_val = self.slider.value() / 100  # slider scaled to seconds
         # Clamp slider max to avoid window overflow
         max_start = self.end_time - self.window_size
         start = self.start_time + min(slider_val, max_start - self.start_time)
         end = start + self.window_size
         
-        # Update both plots
-        self.summary_ax.set_xlim(start, end)
-        self.detailed_ax.set_xlim(start, end)
-        
         # Update time display
         start_str = f"{int(start//60):02d}:{int(start%60):02d}:{int((start%1)*100):02d}"
         end_str = f"{int(end//60):02d}:{int(end%60):02d}:{int((end%1)*100):02d}"
         self.time_display.setText(f"{start_str} - {end_str}")
         
-        # Redraw canvases
-        self.summary_canvas.draw_idle()
-        self.detailed_canvas.draw_idle()
+        # Only redraw if plots have changed significantly
+        if not hasattr(self, '_last_plot_bounds') or abs(self._last_plot_bounds[0] - start) > 0.1:
+            self._last_plot_bounds = (start, end)
+            # Update plots with new data
+            self.update_plots()
+            
+            # Use draw_idle for better performance
+            self.summary_canvas.draw_idle()
+            self.detailed_canvas.draw_idle()
 
     def change_window_size(self, size):
+        print(f"Changing window size to: {size} seconds")  # Debug print
         self.window_size = float(size)
         self.window_size = max(self.min_window_size, min(self.window_size, self.max_window_size))
+        print(f"Final window size: {self.window_size} seconds")  # Debug print
+        
         max_slider_val = int((self.end_time - self.start_time - self.window_size) * 100)
         self.slider.setMaximum(max_slider_val)
         if self.slider.value() > max_slider_val:
             self.slider.setValue(max_slider_val)
+        
+        # Update the plot to reflect the new window size
+        self.update_plot()
+    
+    def resizeEvent(self, event):
+        """Handle window resize events to maintain responsive layout"""
+        # Get new window size
+        new_width = self.width()
+        new_height = self.height()
+        
+        # Dynamic screen size detection during resize
+        self.current_is_small = new_width < 1024
+        
+        # Update splitter sizes proportionally
+        if hasattr(self, 'splitter'):
+            if self.current_is_small:
+                # On small screens, make left panel smaller and collapsible
+                left_width = min(280, int(new_width * 0.25))
+                self.splitter.setChildrenCollapsible(True)
+            else:
+                # On larger screens, maintain fixed proportions
+                left_width = max(350, int(new_width * 0.22))
+                self.splitter.setChildrenCollapsible(False)
+            
+            right_width = max(500, new_width - left_width - 50)  # Account for margins
+            self.splitter.setSizes([left_width, right_width])
+        
+        # Update plot figure sizes if they exist - optimized for full-page analysis
+        if hasattr(self, 'summary_fig') and hasattr(self, 'detailed_fig'):
+            # Calculate available space for plots
+            available_width = new_width - 350  # Account for left panel and margins
+            available_height = new_height - 200  # Account for menu, status bar, and tabs
+            
+            # Convert to inches (1 inch = ~100 pixels for typical displays)
+            fig_width = max(8, available_width / 100)  # Minimum 8 inches width
+            fig_height = max(4, available_height / 150)  # Minimum 4 inches height
+            
+            try:
+                # Set figure sizes for better analysis
+                self.summary_fig.set_size_inches(fig_width, fig_height * 0.4)  # Summary gets 40%
+                self.detailed_fig.set_size_inches(fig_width, fig_height * 0.6)  # Detailed gets 60%
+                
+                # Redraw canvases
+                self.summary_canvas.draw_idle()
+                self.detailed_canvas.draw_idle()
+            except:
+                pass  # Ignore errors during resize
+        
+        # Update status bar with current window size and responsive mode
+        mode = "Compact Mode" if self.current_is_small else "Full Mode"
+        self.statusBar().showMessage(f"Ready - {mode} - Window: {new_width}x{new_height}")
+        
+        super().resizeEvent(event)
+    
+    def toggle_fullscreen(self):
+        """Toggle fullscreen mode for better analysis"""
+        if self.isFullScreen():
+            self.showNormal()
+            self.statusBar().showMessage("Exited fullscreen mode")
         else:
-            self.update_plot()
+            self.showFullScreen()
+            self.statusBar().showMessage("Entered fullscreen mode - Press F11 to exit")
+    
+    def maximize_plot_area(self):
+        """Maximize the plotting area by minimizing control panels"""
+        if hasattr(self, 'splitter'):
+            # Get current window size
+            window_width = self.width()
+            
+            # Maximize right panel (plots)
+            if self.is_small_screen:
+                left_width = min(200, int(window_width * 0.15))  # Very compact controls
+            else:
+                left_width = min(250, int(window_width * 0.12))  # Very compact controls
+            
+            right_width = max(800, window_width - left_width - 20)
+            self.splitter.setSizes([left_width, right_width])
+            
+            # Update status
+            self.statusBar().showMessage("✅ Plot area maximized - Use Ctrl+C to restore controls")
+    
+    def toggle_compact_controls(self):
+        """Toggle between compact and normal control panel sizes"""
+        if hasattr(self, 'splitter'):
+            current_sizes = self.splitter.sizes()
+            window_width = self.width()
+            
+            if current_sizes[0] < 300:  # Currently compact
+                # Restore normal size
+                if self.is_small_screen:
+                    left_width = min(280, int(window_width * 0.25))
+                else:
+                    left_width = max(350, int(window_width * 0.22))
+                right_width = max(500, window_width - left_width - 50)
+                self.statusBar().showMessage("✅ Controls restored to normal size")
+            else:
+                # Make compact
+                if self.is_small_screen:
+                    left_width = min(200, int(window_width * 0.15))
+                else:
+                    left_width = min(250, int(window_width * 0.12))
+                right_width = max(800, window_width - left_width - 20)
+                self.statusBar().showMessage("✅ Controls compacted - Use Ctrl+C to restore")
+            
+            self.splitter.setSizes([left_width, right_width])
 
-    def zoom_in(self):
-        new_size = self.window_size / 1.5  # zoom in by reducing window size
-        if new_size < self.min_window_size:
-            new_size = self.min_window_size
-        self.window_size = new_size
-        max_slider_val = int((self.end_time - self.start_time - self.window_size) * 100)
-        self.slider.setMaximum(max_slider_val)
-        self.update_plot()
 
-    def zoom_out(self):
-        new_size = self.window_size * 1.5  # zoom out by increasing window size
-        if new_size > self.max_window_size:
-            new_size = self.max_window_size
-        self.window_size = new_size
-        max_slider_val = int((self.end_time - self.start_time - self.window_size) * 100)
-        self.slider.setMaximum(max_slider_val)
-        self.update_plot()
 
     def togglePlayback(self):
         if self.is_playing:
@@ -794,9 +1387,48 @@ class SleepSensePlot(QMainWindow):
     def saveReport(self):
         self.statusBar().showMessage("Save report functionality - Not implemented yet")
 
+    def show_frame_change_dialog(self):
+        """Show dialog to change frame size"""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        current_size = self.window_size
+        new_size, ok = QInputDialog.getInt(
+            self, 
+            "Change Frame Size", 
+            f"Enter new frame size in seconds (current: {current_size}s):",
+            int(current_size), 
+            1, 
+            600, 
+            1
+        )
+        
+        if ok:
+            self.change_window_size(new_size)
+            self.statusBar().showMessage(f"Frame size changed to {new_size} seconds")
+
     def configure_signal_checkboxes(self):
         """Automatically configure checkboxes based on data availability"""
         num_columns = len(self.data.columns)
+        
+        # Ensure all signals are checked by default for better analysis
+        self.spo2_checkbox.setChecked(True)
+        self.pulse_checkbox.setChecked(True)
+        self.flow_checkbox.setChecked(True)
+        self.position_checkbox.setChecked(True)
+        self.activity_checkbox.setChecked(True)
+        self.snore_checkbox.setChecked(True)
+        self.thorax_checkbox.setChecked(True)
+        self.abdomen_checkbox.setChecked(True)
+        self.pleth_checkbox.setChecked(True)
+        
+        # Check EEG signals by default
+        if hasattr(self, 'eeg_c3_checkbox'):
+            self.eeg_c3_checkbox.setChecked(True)
+            self.eeg_c4_checkbox.setChecked(True)
+            self.eeg_f3_checkbox.setChecked(True)
+            self.eeg_f4_checkbox.setChecked(True)
+            self.eeg_o1_checkbox.setChecked(True)
+            self.eeg_o2_checkbox.setChecked(True)
         
         if num_columns == 10:  # Current format
             # Keep all signals enabled to show generated waves
@@ -805,12 +1437,10 @@ class SleepSensePlot(QMainWindow):
             self.abdomen_checkbox.setEnabled(True)
             self.pleth_checkbox.setEnabled(True)
             
-            # Update format label
-            self.format_label.setText("Current (10 cols) + Generated Waves")
-            self.format_label.setStyleSheet("color: #27ae60; font-weight: bold;")
+
             
             # Show status message
-            self.statusBar().showMessage("Current data format detected - Future signals show generated realistic waveforms")
+            self.statusBar().showMessage("Current data format detected - All waves plotted for better analysis")
             
         elif num_columns >= 12:  # Future format
             # Enable all signals
@@ -819,9 +1449,7 @@ class SleepSensePlot(QMainWindow):
             self.abdomen_checkbox.setEnabled(True)
             self.pleth_checkbox.setEnabled(True)
             
-            # Update format label
-            self.format_label.setText(f"Future ({num_columns} cols)")
-            self.format_label.setStyleSheet("color: #e67e22; font-weight: bold;")
+
             
             # Auto-check future signals if they have real data
             if np.any(self.snore != 0):
@@ -833,11 +1461,530 @@ class SleepSensePlot(QMainWindow):
             if np.any(self.pleth != 0):
                 self.pleth_checkbox.setChecked(True)
             
-            self.statusBar().showMessage("Future data format detected - All signals enabled")
+            self.statusBar().showMessage("Future data format detected - All signals enabled and plotted")
+
+    def plot_activity_simple(self, ax, offset, start_idx, end_idx):
+        """Optimized activity plotting for better performance"""
+        # Use simplified activity display
+        activity_window = self.activity_n.iloc[start_idx:end_idx]
+        time_window = self.time.iloc[start_idx:end_idx]
+        
+        # Create simple line plot instead of complex bars - bright color for dark mode
+        ax.plot(time_window, activity_window + offset, color='#FFD700', linewidth=0.8, label='Activity', alpha=0.9)
+        
+        # Add simple sleep/wake indicators at key points
+        if end_idx - start_idx > 50:
+            step = (end_idx - start_idx) // 10
+            for i in range(start_idx, end_idx, step):
+                if i < len(self.activity):
+                    if self.activity.iloc[i] > 0.5:
+                        ax.scatter(self.time.iloc[i], self.activity_n.iloc[i] + offset + 0.1, 
+                                 color='#FF6B6B', s=25, alpha=0.9, marker='o')
+                    else:
+                        ax.scatter(self.time.iloc[i], self.activity_n.iloc[i] + offset - 0.1, 
+                                 color='#4ECDC4', s=25, alpha=0.9, marker='s')
+
+    def create_sleep_wake_indicators(self):
+        """Create discrete sleep/wake indicators based on activity data"""
+        # Convert continuous activity to discrete sleep/wake states
+        sleep_wake = np.zeros_like(self.activity)
+        
+        # Threshold-based classification
+        threshold = 0.5
+        for i, activity_val in enumerate(self.activity):
+            if activity_val > threshold:
+                sleep_wake[i] = 1  # Wake
+            else:
+                sleep_wake[i] = 0  # Sleep
+        
+        # Add some smoothing to avoid rapid switching
+        smoothed_sleep_wake = np.copy(sleep_wake)
+        window_size = 20  # Smooth over 20 samples
+        
+        for i in range(window_size, len(smoothed_sleep_wake)):
+            # If majority of recent samples are wake, classify as wake
+            recent_samples = sleep_wake[i-window_size:i]
+            if np.mean(recent_samples) > 0.6:
+                smoothed_sleep_wake[i] = 1
+            elif np.mean(recent_samples) < 0.4:
+                smoothed_sleep_wake[i] = 0
+        
+        return smoothed_sleep_wake
+
+    def debounced_update_plots(self):
+        """Debounced plot update to prevent excessive redraws"""
+        if hasattr(self, '_update_timer'):
+            self._update_timer.stop()
+        else:
+            self._update_timer = QTimer()
+            self._update_timer.setSingleShot(True)
+            self._update_timer.timeout.connect(self.update_plots)
+        
+        # Wait 100ms before updating to batch multiple checkbox changes
+        self._update_timer.start(100)
+
+    def toggle_zoom(self, signal_index, zoomed_in):
+        """Toggle zoom state for a specific wave by adjusting its offset."""
+        if signal_index in self.zoom_toggles:
+            toggle_btn = self.zoom_toggles[signal_index]
+            
+            # Update zoom state
+            self.zoom_states[signal_index] = zoomed_in
+            
+            # Update button text and style based on state
+            if zoomed_in:
+                toggle_btn.setText("▼")  # Down arrow when zoomed in
+                # Zoom in effect
+                current_offset = self.offsets[signal_index]
+                new_offset = current_offset * 1.5  # Zoom in
+                new_offset = max(-2.0, min(new_offset, 2.0))  # Keep within bounds
+                self.offsets[signal_index] = new_offset
+            else:
+                toggle_btn.setText("▲")  # Up arrow when zoomed out
+                # Zoom out effect
+                current_offset = self.offsets[signal_index]
+                new_offset = current_offset * 0.8  # Zoom out
+                new_offset = max(-2.0, min(new_offset, 2.0))  # Keep within bounds
+                self.offsets[signal_index] = new_offset
+            
+            # Update the plot with debouncing
+            self.debounced_update_plots()
+    
+    def zoom_wave(self, signal_index, factor):
+        """Zoom in or out on a specific wave by adjusting its offset."""
+        current_offset = self.offsets[signal_index]
+        new_offset = current_offset * factor
+        
+        # Ensure new offset is within reasonable bounds
+        min_offset = -2.0 # Allow signals to go slightly below baseline
+        max_offset = 2.0 # Allow signals to go slightly above baseline
+        
+        new_offset = max(min_offset, min(new_offset, max_offset))
+        
+        self.offsets[signal_index] = new_offset
+        self.update_plot()
+
+    # Data Security Methods
+    def secure_existing_data(self):
+        """Convert existing plain text data files to encrypted format"""
+        try:
+            from PyQt5.QtWidgets import QMessageBox
+            
+            # Show confirmation dialog
+            reply = QMessageBox.question(
+                self, 
+                'Secure Data', 
+                'This will convert all existing plain text data files to encrypted format.\n\n'
+                'This ensures your sleep data is only readable within SleepSense.\n\n'
+                'Do you want to proceed?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                # Show progress message
+                self.statusBar().showMessage("Securing existing data files...")
+                
+                # Convert data to encrypted format
+                converted_files = self.data_manager.secure_all_existing_data()
+                
+                if converted_files:
+                    QMessageBox.information(
+                        self,
+                        'Data Secured',
+                        f'Successfully secured {len(converted_files)} data files!\n\n'
+                        'All your sleep data is now encrypted and secure.\n'
+                        'Only SleepSense can read this data.'
+                    )
+                    self.statusBar().showMessage(f"✅ {len(converted_files)} files secured successfully")
+                else:
+                    QMessageBox.information(
+                        self,
+                        'No Action Needed',
+                        'No plain text data files found to convert.\n'
+                        'Your data is already secure!'
+                    )
+                    self.statusBar().showMessage("✅ No files need conversion")
+                    
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                'Error',
+                f'Failed to secure data: {str(e)}\n\n'
+                'Please check the console for details.'
+            )
+            self.statusBar().showMessage("❌ Failed to secure data")
+            print(f"Error securing data: {e}")
+
+    def list_data_files(self):
+        """Show information about available data files"""
+        try:
+            from PyQt5.QtWidgets import QMessageBox, QTextEdit, QVBoxLayout, QDialog
+            
+            # Get list of available files
+            files_info = self.data_manager.list_available_data_files()
+            
+            # Create dialog to show file information
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Data Files Information")
+            dialog.setModal(True)
+            dialog.resize(600, 400)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Create text display
+            text_display = QTextEdit()
+            text_display.setReadOnly(True)
+            
+            # Format file information
+            info_text = "📋 Available Data Files\n"
+            info_text += "=" * 50 + "\n\n"
+            
+            if files_info["total"] == 0:
+                info_text += "No data files found.\n"
+            else:
+                # Show encrypted files
+                if files_info["encrypted"]:
+                    info_text += f"🔒 Encrypted Files ({len(files_info['encrypted'])}):\n"
+                    for file_info in files_info["encrypted"]:
+                        info = file_info["info"]
+                        info_text += f"   • {file_info['filename']}\n"
+                        info_text += f"     - Size: {info.get('size_bytes', 'Unknown')} bytes\n"
+                        info_text += f"     - Encrypted: {info.get('encrypted', True)}\n"
+                        if 'encrypted_at' in info:
+                            info_text += f"     - Encrypted at: {info['encrypted_at']}\n"
+                        info_text += "\n"
+                
+                # Show plain text files
+                if files_info["plain_text"]:
+                    info_text += f"📄 Plain Text Files ({len(files_info['plain_text'])}):\n"
+                    info_text += "   ⚠️  These files are NOT encrypted and can be read by anyone!\n\n"
+                    for file_info in files_info["plain_text"]:
+                        info = file_info["info"]
+                        info_text += f"   • {file_info['filename']}\n"
+                        info_text += f"     - Size: {info.get('size_bytes', 'Unknown')} bytes\n"
+                        info_text += f"     - Format: {info.get('format', 'Unknown')}\n"
+                        info_text += "\n"
+            
+            text_display.setPlainText(info_text)
+            layout.addWidget(text_display)
+            
+            # Show dialog
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                'Error',
+                f'Failed to list data files: {str(e)}'
+            )
+            print(f"Error listing data files: {e}")
+
+    def export_secure_data(self):
+        """Export data in a user-readable format (for reports, sharing, etc.)"""
+        try:
+            from PyQt5.QtWidgets import QFileDialog, QMessageBox
+            
+            if self.data is None:
+                QMessageBox.warning(
+                    self,
+                    'No Data',
+                    'No data loaded to export.'
+                )
+                return
+            
+            # Get export format from user
+            format_options = ["CSV", "Excel", "Text"]
+            format_choice, ok = QInputDialog.getItem(
+                self, 
+                'Export Format', 
+                'Choose export format:',
+                format_options, 
+                0, 
+                False
+            )
+            
+            if not ok:
+                return
+            
+            # Get save location
+            default_name = f"sleep_data_export_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}"
+            if format_choice == "CSV":
+                filepath, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    'Save Export', 
+                    f"{default_name}.csv",
+                    'CSV Files (*.csv)'
+                )
+            elif format_choice == "Excel":
+                filepath, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    'Save Export', 
+                    f"{default_name}.xlsx",
+                    'Excel Files (*.xlsx)'
+                )
+            else:  # Text
+                filepath, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    'Save Export', 
+                    f"{default_name}.txt",
+                    'Text Files (*.txt)'
+                )
+            
+            if filepath:
+                # Export data
+                self.data_manager.export_data_for_user(
+                    self.data, 
+                    filepath, 
+                    format_choice.lower()
+                )
+                
+                QMessageBox.information(
+                    self,
+                    'Export Successful',
+                    f'Data exported successfully to:\n{filepath}\n\n'
+                    '⚠️  Note: This export file is NOT encrypted.\n'
+                    'Handle it with appropriate care for privacy.'
+                )
+                
+                self.statusBar().showMessage(f"✅ Data exported to {os.path.basename(filepath)}")
+                
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                'Error',
+                f'Failed to export data: {str(e)}'
+            )
+            print(f"Error exporting data: {e}")
+
+    # Region Selection Methods
+    def on_mouse_press(self, event):
+        """Handle mouse press events for region selection"""
+        if event.inaxes != self.detailed_ax:
+            return
+        
+        if event.button == 1:  # Left mouse button
+            self.is_selecting = True
+            self.selection_start = event.xdata
+            self.statusBar().showMessage("🖱️  Click and drag to select region (release to finish)")
+    
+    def on_mouse_move(self, event):
+        """Handle mouse movement during region selection"""
+        if not self.is_selecting or event.inaxes != self.detailed_ax:
+            return
+        
+        if self.selection_start is not None:
+            # Remove previous selection rectangle
+            if self.selection_rect:
+                self.selection_rect.remove()
+                self.selection_rect = None
+            
+            # Create new selection rectangle
+            start_x = min(self.selection_start, event.xdata)
+            end_x = max(self.selection_start, event.xdata)
+            
+            # Create rectangle patch - black background for dark mode
+            from matplotlib.patches import Rectangle
+            self.selection_rect = Rectangle(
+                (start_x, self.detailed_ax.get_ylim()[0]), 
+                end_x - start_x, 
+                self.detailed_ax.get_ylim()[1] - self.detailed_ax.get_ylim()[0],
+                alpha=0.8, 
+                color='black', 
+                edgecolor='white',
+                linewidth=2
+            )
+            self.detailed_ax.add_patch(self.selection_rect)
+            self.detailed_canvas.draw_idle()
+    
+    def on_mouse_release(self, event):
+        """Handle mouse release events to finalize region selection"""
+        if not self.is_selecting or event.inaxes != self.detailed_ax:
+            return
+        
+        if event.button == 1 and self.selection_start is not None:  # Left mouse button
+            self.is_selecting = False
+            
+            # Get selection boundaries
+            start_x = min(self.selection_start, event.xdata)
+            end_x = max(self.selection_start, event.xdata)
+            
+            # Convert time to indices
+            start_idx = (np.abs(self.time - start_x)).argmin()
+            end_idx = (np.abs(self.time - end_x)).argmin()
+            
+            # Create region info
+            region_info = {
+                'start_time': start_x,
+                'end_time': end_x,
+                'start_idx': start_idx,
+                'end_idx': end_idx,
+                'duration': end_x - start_x,
+                'rectangle': self.selection_rect
+            }
+            
+            # Add to selected regions
+            self.selected_regions.append(region_info)
+            
+            # Change color to indicate selection is complete - keep black background for dark mode
+            self.selection_rect.set_facecolor('black')
+            self.selection_rect.set_edgecolor('white')
+            self.selection_rect.set_alpha(0.9)
+            
+            # Update status
+            duration_str = f"{region_info['duration']:.1f}s"
+            start_str = f"{start_x:.1f}s"
+            end_str = f"{end_x:.1f}s"
+            
+            self.statusBar().showMessage(
+                f"✅ Region selected: {start_str} to {end_str} ({duration_str}) - "
+                f"Total regions: {len(self.selected_regions)}"
+            )
+            
+            # Clear selection variables
+            self.selection_start = None
+            self.selection_rect = None
+            
+            # Redraw canvas
+            self.detailed_canvas.draw_idle()
+            
+            # Update title to show new region count
+            self.update_detailed_view_title()
+    
+    def clear_selected_regions(self):
+        """Clear all selected regions"""
+        for region in self.selected_regions:
+            if region['rectangle']:
+                region['rectangle'].remove()
+        self.selected_regions.clear()
+        self.detailed_canvas.draw_idle()
+        self.statusBar().showMessage("🗑️  All selected regions cleared")
+        
+        # Update title to show new region count
+        self.update_detailed_view_title()
+    
+    def get_selected_regions_info(self):
+        """Get information about all selected regions"""
+        if not self.selected_regions:
+            return "No regions selected"
+        
+        info = f"📋 Selected Regions ({len(self.selected_regions)}):\n"
+        for i, region in enumerate(self.selected_regions, 1):
+            start_str = f"{region['start_time']:.1f}s"
+            end_str = f"{region['end_time']:.1f}s"
+            duration_str = f"{region['duration']:.1f}s"
+            info += f"  {i}. {start_str} → {end_str} ({duration_str})\n"
+        
+        return info
+    
+    def show_selected_regions(self):
+        """Show information about selected regions in a dialog"""
+        try:
+            from PyQt5.QtWidgets import QMessageBox, QTextEdit, QVBoxLayout, QDialog
+            
+            # Create dialog to show region information
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Selected Regions Information")
+            dialog.setModal(True)
+            dialog.resize(500, 400)
+            
+            layout = QVBoxLayout(dialog)
+            
+            # Create text display
+            text_display = QTextEdit()
+            text_display.setReadOnly(True)
+            
+            # Get region information
+            regions_info = self.get_selected_regions_info()
+            
+            # Format display text
+            display_text = "🖱️  Region Selection Information\n"
+            display_text += "=" * 50 + "\n\n"
+            display_text += regions_info
+            
+            if self.selected_regions:
+                display_text += "\n💡 Tips:\n"
+                display_text += "• Click and drag in Detailed View to select regions\n"
+                display_text += "• Selected regions are highlighted in blue\n"
+                display_text += "• Use 'Clear All Regions' to remove selections\n"
+                display_text += "• Regions help mark important sleep events\n"
+            
+            text_display.setPlainText(display_text)
+            layout.addWidget(text_display)
+            
+            # Show dialog
+            dialog.exec_()
+            
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                'Error',
+                f'Failed to show regions info: {str(e)}'
+            )
+            print(f"Error showing regions info: {e}")
+    
+    def update_detailed_view_title(self):
+        """Update the detailed view title to show current region count"""
+        try:
+            regions_count = len(self.selected_regions)
+            if regions_count > 0:
+                title = f'SleepSense - Detailed Waveform View\n💡 Click and drag to select regions | 📋 {regions_count} region(s) selected'
+            else:
+                title = 'SleepSense - Detailed Waveform View\n💡 Click and drag to select regions (lights on/off)'
+            
+            self.detailed_ax.set_title(title, fontsize=14, fontweight='bold')
+            self.detailed_canvas.draw_idle()
+        except Exception as e:
+            print(f"Error updating title: {e}")
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    win = SleepSensePlot()
-    win.show()
+    
+    # Import and show activation dialog first
+    try:
+        from activation_dialog import ActivationDialog
+        
+        # Show activation dialog
+        activation_dialog = ActivationDialog()
+        
+        # If dialog is already activated, show main window directly
+        if activation_dialog.is_activated():
+            win = SleepSensePlot()
+            win.show()
+        else:
+            # Show activation dialog and wait for result
+            result = activation_dialog.exec_()
+            
+            if result == QDialog.Accepted:
+                # Activation successful, show main window
+                win = SleepSensePlot()
+                win.show()
+            else:
+                # Activation failed or cancelled, exit
+                sys.exit(0)
+                
+    except ImportError as e:
+        # If activation dialog can't be imported, show error and exit
+        from PyQt5.QtWidgets import QMessageBox, QApplication
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle("Error")
+        msg.setText("Activation system not found!")
+        msg.setInformativeText("The activation dialog file is missing. Please ensure 'activation_dialog.py' is in the same directory.")
+        msg.setDetailedText(f"Import error: {str(e)}")
+        msg.exec_()
+        sys.exit(1)
+    except Exception as e:
+        # Handle any other errors
+        from PyQt5.QtWidgets import QMessageBox
+        msg = QMessageBox()
+        msg.setIcon(QMessageBox.Critical)
+        msg.setWindowTitle("Error")
+        msg.setText("Unexpected error occurred!")
+        msg.setInformativeText("Please contact support for assistance.")
+        msg.setDetailedText(f"Error: {str(e)}")
+        msg.exec_()
+        sys.exit(1)
+    
     sys.exit(app.exec_())
