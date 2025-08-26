@@ -34,7 +34,7 @@ import os
 import pandas as pd
 import numpy as np
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QWidget, QSlider,
+    QApplication, QMainWindow, QVBoxLayout, QWidget,
     QPushButton, QHBoxLayout, QLabel, QMenuBar, QMenu, QAction,
     QFrame, QGridLayout, QGroupBox, QSplitter, QTextEdit,
     QComboBox, QCheckBox, QSpinBox, QDoubleSpinBox, QTabWidget,
@@ -739,8 +739,6 @@ class SleepSensePlot(QMainWindow):
         separator.setStyleSheet("QFrame { background-color: #dee2e6; margin: 10px 20px; }")
         left_layout.addWidget(separator)
         
-
-        
         # Respiratory Controls Group
         respiratory_group = QGroupBox("🫁 Respiratory Controls")
         respiratory_group.setStyleSheet("""
@@ -1022,50 +1020,7 @@ class SleepSensePlot(QMainWindow):
         navigation_layout.setContentsMargins(8, 8, 8, 8)  # Reduce margins
         navigation_layout.setSpacing(4)  # Reduce spacing between elements
         
-        # Time slider
-        time_label = QLabel("Time Position:")
-        time_label.setStyleSheet("""
-            QLabel {
-                font-size: 10px;
-                font-weight: 500;
-                color: #495057;
-                margin-bottom: 2px;
-            }
-        """)
-        navigation_layout.addWidget(time_label)
-        
-        self.slider = QSlider(Qt.Horizontal)
-        self.slider.setMinimum(0)
-        self.slider.setMaximum(int((self.end_time - self.start_time - self.window_size) * 100))
-        self.slider.setValue(0)
-        self.slider.setTickInterval(100)
-        self.slider.setSingleStep(1)
-        self.slider.valueChanged.connect(self.update_plot)
-        
-        # Make slider thinner and more compact
-        self.slider.setFixedHeight(20)  # Reduce height from default
-        self.slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                border: 1px solid #bdc3c7;
-                height: 4px;
-                background-color: #ecf0f1;
-                border-radius: 2px;
-                margin: 0px;
-            }
-            QSlider::handle:horizontal {
-                background-color: #3498db;
-                border: 1px solid #2980b9;
-                width: 12px;
-                height: 12px;
-                margin: -4px 0;
-                border-radius: 6px;
-            }
-            QSlider::handle:horizontal:hover {
-                background-color: #2980b9;
-                border-color: #21618c;
-            }
-        """)
-        navigation_layout.addWidget(self.slider)
+
         
         # Time display
         self.time_display = QLabel("00:00:00 - 00:00:10")
@@ -1083,35 +1038,86 @@ class SleepSensePlot(QMainWindow):
         """)
         navigation_layout.addWidget(self.time_display)
         
+        # Frame size buttons
+        frame_size_label = QLabel("Frame Size:")
+        frame_size_label.setStyleSheet("""
+            QLabel {
+                font-size: 10px;
+                font-weight: 500;
+                color: #495057;
+                margin-top: 8px;
+                margin-bottom: 4px;
+            }
+        """)
+        navigation_layout.addWidget(frame_size_label)
+        
+        # Create frame size buttons layout
+        frame_buttons_layout = QHBoxLayout()
+        frame_buttons_layout.setContentsMargins(0, 0, 0, 0)
+        frame_buttons_layout.setSpacing(4)
+        
+        # Frame size options in seconds
+        frame_sizes = [
+            ("5s", 5),
+            ("10s", 10),
+            ("30s", 30),
+            ("1m", 60),
+            ("2m", 120),
+            ("5m", 300),
+            ("10m", 600),
+            ("30m", 1800)
+        ]
+        
+        # Create frame size buttons
+        self.frame_buttons = {}
+        for label, seconds in frame_sizes:
+            btn = QPushButton(label)
+            btn.setFixedSize(40, 28)
+            btn.setCheckable(True)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #6c757d;
+                    color: white;
+                    border: 2px solid #495057;
+                    border-radius: 4px;
+                    font-weight: 600;
+                    font-size: 9px;
+                    min-width: 0px;
+                    padding: 0px;
+                }
+                QPushButton:checked {
+                    background-color: #28a745;
+                    border-color: #20c997;
+                }
+                QPushButton:hover {
+                    background-color: #495057;
+                    border-color: #343a40;
+                }
+                QPushButton:checked:hover {
+                    background-color: #20c997;
+                    border-color: #1ea085;
+                }
+            """)
+            
+            # Connect button to frame size change
+            btn.clicked.connect(lambda checked, sec=seconds: self.set_frame_size_from_button(sec))
+            
+            # Add tooltip
+            btn.setToolTip(f"Set frame size to {label}")
+            
+            # Set 10s as default selected
+            if seconds == 10:
+                btn.setChecked(True)
+            
+            frame_buttons_layout.addWidget(btn)
+            self.frame_buttons[seconds] = btn
+        
+        navigation_layout.addLayout(frame_buttons_layout)
+        
         right_layout.addWidget(navigation_group)
         
-        # Create tab widget for different views
-        self.tab_widget = QTabWidget()
-        right_layout.addWidget(self.tab_widget)
-        
-        # Summary view tab
-        summary_tab = QWidget()
-        summary_layout = QVBoxLayout(summary_tab)
-        
-        # Summary data display
-        summary_data = QFrame()
-        summary_data.setFrameStyle(QFrame.Box)
-        summary_data.setStyleSheet("background-color: white; border: 1px solid #bdc3c7;")
-        summary_layout.addWidget(summary_data)
-        
-        # Create matplotlib figure for summary - full page analysis
-        self.summary_fig = Figure(figsize=(16, 6))  # Increased size for better analysis
-        self.summary_canvas = FigureCanvas(self.summary_fig)
-        summary_layout.addWidget(self.summary_canvas)
-        
-        self.tab_widget.addTab(summary_tab, "📊 Summary Data")
-        
-        # Detailed view tab
-        detailed_tab = QWidget()
-        detailed_layout = QVBoxLayout(detailed_tab)
-        
         # Create matplotlib figure for detailed view - full page analysis
-        self.detailed_fig = Figure(figsize=(16, 10))  # Increased size for better analysis
+        self.detailed_fig = Figure(figsize=(16, 12))  # Increased size for better analysis
         self.detailed_canvas = FigureCanvas(self.detailed_fig)
         
         # Add tooltip to explain region selection
@@ -1122,9 +1128,7 @@ class SleepSensePlot(QMainWindow):
             "📋 Use Data Security menu to manage selections"
         )
         
-        detailed_layout.addWidget(self.detailed_canvas)
-        
-        self.tab_widget.addTab(detailed_tab, "🌊 Detailed Waveforms")
+        right_layout.addWidget(self.detailed_canvas)
         
         # Initialize plots
         self.plot_signals()
@@ -1145,16 +1149,11 @@ class SleepSensePlot(QMainWindow):
             # Fallback to default style if 'fast' is not available
             pass
         
-        # Summary plot
-        self.summary_ax = self.summary_fig.add_subplot(111)
-        self.summary_fig.subplots_adjust(bottom=0.2, top=0.85)
-        
         # Detailed plot
         self.detailed_ax = self.detailed_fig.add_subplot(111)
         self.detailed_fig.subplots_adjust(bottom=0.1, top=0.9)
         
         # Performance optimizations
-        self.summary_ax.set_facecolor('#f8f9fa')
         self.detailed_ax.set_facecolor('#f8f9fa')
         
         # Initialize region selection variables
@@ -1175,23 +1174,16 @@ class SleepSensePlot(QMainWindow):
 
     def update_plots(self):
         """Optimized plot update with reduced redraws and better performance"""
-        # Only update if plots are visible
-        if not hasattr(self, 'summary_ax') or not hasattr(self, 'detailed_ax'):
+        # Only update if detailed plot is visible
+        if not hasattr(self, 'detailed_ax'):
             return
             
-        # Clear plots efficiently
-        self.summary_ax.clear()
+        # Clear plot efficiently
         self.detailed_ax.clear()
         
         # Get current window limits for efficient plotting
-        # Calculate slider position as a percentage (0-100)
-        slider_percent = self.slider.value() / 100.0
-        
-        # Calculate start index based on slider position
-        # Ensure we don't go beyond the data bounds
-        max_start_idx = max(0, len(self.time) - 1000)  # Leave at least 1000 samples for the window
-        start_idx = int(slider_percent * max_start_idx)
-        start_idx = max(0, min(start_idx, max_start_idx))
+        # Use fixed start index from beginning of data
+        start_idx = 0
         
         # Calculate actual sampling rate from data
         if len(self.time) > 1:
@@ -1212,94 +1204,76 @@ class SleepSensePlot(QMainWindow):
         
         # Plot signals efficiently with reduced data points
         if self.position_checkbox.isChecked():
-            self.plot_body_position_simple(self.summary_ax, self.offsets[0], start_idx, end_idx)
             self.plot_body_position_simple(self.detailed_ax, self.offsets[0], start_idx, end_idx)
             
         if self.pulse_checkbox.isChecked():
             pulse_window = self.pulse_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, pulse_window + self.offsets[1], color='#FF6B6B', label='Pulse', linewidth=0.8)
             self.detailed_ax.plot(time_window, pulse_window + self.offsets[1], color='#FF6B6B', label='Pulse', linewidth=0.6)
             
         if self.spo2_checkbox.isChecked():
             spo2_window = self.spo2_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, spo2_window + self.offsets[2], color='#4ECDC4', label='SpO2', linewidth=0.8)
             self.detailed_ax.plot(time_window, spo2_window + self.offsets[2], color='#4ECDC4', label='SpO2', linewidth=0.6)
             
         if self.flow_checkbox.isChecked():
             flow_window = self.flow_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, flow_window + self.offsets[3], color='#45B7D1', label='Airflow', linewidth=0.8)
             self.detailed_ax.plot(time_window, flow_window + self.offsets[3], color='#45B7D1', label='Airflow', linewidth=0.6)
             
         if self.snore_checkbox.isChecked():
             snore_window = self.snore_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, snore_window + self.offsets[4], color='#96CEB4', label='Snore', linewidth=0.8)
             self.detailed_ax.plot(time_window, snore_window + self.offsets[4], color='#96CEB4', label='Snore', linewidth=0.6)
             
         if self.thorax_checkbox.isChecked():
             thorax_window = self.thorax_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, thorax_window + self.offsets[5], color='#FFEAA7', label='Thorax', linewidth=0.8)
             self.detailed_ax.plot(time_window, thorax_window + self.offsets[5], color='#FFEAA7', label='Thorax', linewidth=0.6)
             
         if self.abdomen_checkbox.isChecked():
             abdomen_window = self.abdomen_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, abdomen_window + self.offsets[6], color='#DDA0DD', label='Abdomen', linewidth=0.8)
             self.detailed_ax.plot(time_window, abdomen_window + self.offsets[6], color='#DDA0DD', label='Abdomen', linewidth=0.6)
             
         if self.pleth_checkbox.isChecked():
             pleth_window = self.pleth_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, pleth_window + self.offsets[7], color='#F8BBD9', label='Pleth', linewidth=0.8)
             self.detailed_ax.plot(time_window, pleth_window + self.offsets[7], color='#F8BBD9', label='Pleth', linewidth=0.6)
             
         if self.activity_checkbox.isChecked():
             # Simplified activity display for better performance
-            self.plot_activity_simple(self.summary_ax, self.offsets[8], start_idx, end_idx)
             self.plot_activity_simple(self.detailed_ax, self.offsets[8], start_idx, end_idx)
         
         # Plot EEG signals if checked - using bright neon colors for dark mode visibility
         if hasattr(self, 'eeg_c3_checkbox') and self.eeg_c3_checkbox.isChecked():
             eeg_c3_window = self.eeg_c3_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_c3_window + 10.8, color='#00FFFF', label='EEG C3', linewidth=0.8)
             self.detailed_ax.plot(time_window, eeg_c3_window + 10.8, color='#00FFFF', label='EEG C3', linewidth=0.6)
             
         if hasattr(self, 'eeg_c4_checkbox') and self.eeg_c4_checkbox.isChecked():
             eeg_c4_window = self.eeg_c4_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_c4_window + 12.0, color='#FF00FF', label='EEG C4', linewidth=0.8)
             self.detailed_ax.plot(time_window, eeg_c4_window + 12.0, color='#FF00FF', label='EEG C4', linewidth=0.6)
             
         if hasattr(self, 'eeg_f3_checkbox') and self.eeg_f3_checkbox.isChecked():
             eeg_f3_window = self.eeg_f3_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_f3_window + 13.2, color='#FFFF00', label='EEG F3', linewidth=0.8)
             self.detailed_ax.plot(time_window, eeg_f3_window + 13.2, color='#FFFF00', label='EEG F3', linewidth=0.6)
             
         if hasattr(self, 'eeg_f4_checkbox') and self.eeg_f4_checkbox.isChecked():
             eeg_f4_window = self.eeg_f4_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_f4_window + 14.4, color='#00FF00', label='EEG F4', linewidth=0.8)
             self.detailed_ax.plot(time_window, eeg_f4_window + 14.4, color='#00FF00', label='EEG F4', linewidth=0.6)
             
         if hasattr(self, 'eeg_o1_checkbox') and self.eeg_o1_checkbox.isChecked():
             eeg_o1_window = self.eeg_o1_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_o1_window + 15.6, color='#FFA500', label='EEG O1', linewidth=0.8)
             self.detailed_ax.plot(time_window, eeg_o1_window + 15.6, color='#FFA500', label='EEG O1', linewidth=0.6)
             
-        if hasattr(self, 'eeg_o2_checkbox') and self.eeg_o2_checkbox.isChecked():
+        if hasattr(self, 'eeg_c4_checkbox') and self.eeg_o2_checkbox.isChecked():
             eeg_o2_window = self.eeg_o2_n.iloc[start_idx:end_idx]
-            self.summary_ax.plot(time_window, eeg_o2_window + 16.8, color='#FF1493', label='EEG O2', linewidth=0.6)
             self.detailed_ax.plot(time_window, eeg_o2_window + 16.8, color='#FF1493', label='EEG O2', linewidth=0.6)
 
-        # Set common plot properties efficiently
-        for ax in [self.summary_ax, self.detailed_ax]:
-            ax.set_ylim(-0.5, max(self.offsets) + 1)
-            ax.grid(True, alpha=0.3)
-            ax.legend(loc='upper right')
+        # Set plot properties
+        self.detailed_ax.set_ylim(-0.5, max(self.offsets) + 1)
+        self.detailed_ax.grid(True, alpha=0.3)
+        self.detailed_ax.legend(loc='upper right')
         
-        # Set specific properties for each plot
-        self.summary_ax.set_title('SleepSense Pro - Summary Data View', fontsize=12, fontweight='bold')
+        # Set specific properties for the plot
         self.detailed_ax.set_title('SleepSense Pro - Detailed Waveform View', fontsize=12, fontweight='bold')
         
         # Set x-axis limits for current window
         start_time = self.time.iloc[start_idx]
         end_time = self.time.iloc[end_idx-1] if end_idx > start_idx else start_time + self.window_size
-        self.summary_ax.set_xlim(start_time, end_time)
         self.detailed_ax.set_xlim(start_time, end_time)
 
     def plot_body_position_simple(self, ax, offset, start_idx, end_idx):
@@ -1368,67 +1342,70 @@ class SleepSensePlot(QMainWindow):
                            fontsize=8, color='green', ha='center', weight='bold',
                            arrowprops=dict(arrowstyle='->', color='green', lw=1))
 
-    def add_position_arrows(self):
-        arrow_y = self.offsets[0] + 0.5
-        interval = 5  # seconds between arrows
-        dt = self.time.iloc[1] - self.time.iloc[0]
-        sampling_step = max(int(interval / dt), 1)
-        arrow_times = self.time[::sampling_step]
 
-        for t in arrow_times:
-            idx = (np.abs(self.time - t)).argmin()
-            pos = self.body_pos.iloc[idx]
-            dx, dy, arrow_char, label = self.arrow_directions.get(pos, (0, 0, '?', 'Unknown'))
-            
-            # Add to both plots
-            for ax in [self.summary_ax, self.detailed_ax]:
-                ax.annotate(
-                    arrow_char,
-                    xy=(self.time.iloc[idx], arrow_y),
-                    xytext=(self.time.iloc[idx] + dx, arrow_y + dy),
-                    fontsize=16,
-                    color='blue',
-                    ha='center',
-                    va='center',
-                    arrowprops=dict(arrowstyle='->', color='green', lw=1)
-                )
 
     def update_plot(self):
         """Optimized plot update with reduced redraws"""
-        slider_val = self.slider.value() / 100  # slider scaled to seconds
-        # Clamp slider max to avoid window overflow
-        max_start = self.end_time - self.window_size
-        start = self.start_time + min(slider_val, max_start - self.start_time)
+        # Use fixed time window starting from beginning
+        start = self.start_time
         end = start + self.window_size
         
-        # Update time display
+        # Update time display with better formatting
         start_str = f"{int(start//60):02d}:{int(start%60):02d}:{int((start%1)*100):02d}"
         end_str = f"{int(end//60):02d}:{int(end%60):02d}:{int((end%1)*100):02d}"
-        self.time_display.setText(f"{start_str} - {end_str}")
         
-        # Only redraw if plots have changed significantly
+        # Add frame size information to the display
+        frame_info = f"Frame: {self.window_size}s"
+        self.time_display.setText(f"{start_str} - {end_str} | {frame_info}")
+        
+        # Only redraw if plot has changed significantly
         if not hasattr(self, '_last_plot_bounds') or abs(self._last_plot_bounds[0] - start) > 0.1:
             self._last_plot_bounds = (start, end)
-            # Update plots with new data
+            # Update plot with new data
             self.update_plots()
             
             # Use draw_idle for better performance
-            self.summary_canvas.draw_idle()
             self.detailed_canvas.draw_idle()
 
     def change_window_size(self, size):
-        print(f"Changing window size to: {size} seconds")  # Debug print
-        self.window_size = float(size)
-        self.window_size = max(self.min_window_size, min(self.window_size, self.max_window_size))
-        print(f"Final window size: {self.window_size} seconds")  # Debug print
+        """Change the time window size and update all related components"""
+        # Validate and set the new window size
+        new_size = float(size)
+        self.window_size = max(self.min_window_size, min(new_size, self.max_window_size))
         
-        max_slider_val = int((self.end_time - self.start_time - self.window_size) * 100)
-        self.slider.setMaximum(max_slider_val)
-        if self.slider.value() > max_slider_val:
-            self.slider.setValue(max_slider_val)
+        # Debug information
+        print(f"Changing window size to: {size} seconds")
+        print(f"Final window size: {self.window_size} seconds")
+        print(f"Time range: {self.start_time:.1f}s to {self.start_time + self.window_size:.1f}s")
         
         # Update the plot to reflect the new window size
         self.update_plot()
+        
+        # Update frame button states to reflect the new size
+        if hasattr(self, 'frame_buttons'):
+            self.update_frame_button_states(int(self.window_size))
+    
+    def set_frame_size_from_button(self, seconds):
+        """Set frame size from toolbar button and update button states"""
+        # Update window size
+        self.change_window_size(seconds)
+        
+        # Update button states - uncheck all, check the selected one
+        for btn_seconds, btn in self.frame_buttons.items():
+            btn.setChecked(btn_seconds == seconds)
+        
+        # Force immediate update of time display and plot
+        self.update_plot()
+        
+        # Update status bar with more detailed information
+        if seconds < 60:
+            time_str = f"{seconds} seconds"
+        elif seconds < 3600:
+            time_str = f"{seconds//60} minute{'s' if seconds//60 != 1 else ''}"
+        else:
+            time_str = f"{seconds//3600} hour{'s' if seconds//3600 != 1 else ''}"
+        
+        self.statusBar().showMessage(f"✅ Frame size changed to {time_str} - Time window updated")
     
     def resizeEvent(self, event):
         """Handle window resize events to maintain responsive layout"""
@@ -1454,22 +1431,20 @@ class SleepSensePlot(QMainWindow):
             self.splitter.setSizes([left_width, right_width])
         
         # Update plot figure sizes if they exist - optimized for full-page analysis
-        if hasattr(self, 'summary_fig') and hasattr(self, 'detailed_fig'):
+        if hasattr(self, 'detailed_fig'):
             # Calculate available space for plots
             available_width = new_width - 350  # Account for left panel and margins
             available_height = new_height - 200  # Account for menu, status bar, and tabs
             
             # Convert to inches (1 inch = ~100 pixels for typical displays)
             fig_width = max(8, available_width / 100)  # Minimum 8 inches width
-            fig_height = max(4, available_height / 150)  # Minimum 4 inches height
+            fig_height = max(6, available_height / 150)  # Minimum 6 inches height
             
             try:
-                # Set figure sizes for better analysis
-                self.summary_fig.set_size_inches(fig_width, fig_height * 0.4)  # Summary gets 40%
-                self.detailed_fig.set_size_inches(fig_width, fig_height * 0.6)  # Detailed gets 60%
+                # Set figure size for better analysis
+                self.detailed_fig.set_size_inches(fig_width, fig_height)
                 
-                # Redraw canvases
-                self.summary_canvas.draw_idle()
+                # Redraw canvas
                 self.detailed_canvas.draw_idle()
             except:
                 pass  # Ignore errors during resize
@@ -1553,12 +1528,9 @@ class SleepSensePlot(QMainWindow):
         self.play_timer.stop()
 
     def auto_advance(self):
-        current_val = self.slider.value()
-        max_val = self.slider.maximum()
-        if current_val < max_val:
-            self.slider.setValue(current_val + 1)
-        else:
-            self.stopPlayback()
+        # Auto-advance functionality removed with slider
+        # This method is kept for compatibility but does nothing
+        pass
 
     def changeSpeed(self, speed_text):
         speed_map = {"0.5x": 0.5, "1x": 1.0, "2x": 2.0, "5x": 5.0}
@@ -1588,8 +1560,19 @@ class SleepSensePlot(QMainWindow):
         )
         
         if ok:
+            # Update window size
             self.change_window_size(new_size)
+            
+            # Update button states to match the new size
+            self.update_frame_button_states(new_size)
+            
             self.statusBar().showMessage(f"Frame size changed to {new_size} seconds")
+    
+    def update_frame_button_states(self, selected_seconds):
+        """Update frame button states to reflect the current frame size"""
+        if hasattr(self, 'frame_buttons'):
+            for btn_seconds, btn in self.frame_buttons.items():
+                btn.setChecked(btn_seconds == selected_seconds)
 
     def configure_signal_checkboxes(self):
         """Automatically configure checkboxes based on data availability"""
@@ -2121,6 +2104,8 @@ class SleepSensePlot(QMainWindow):
             self.detailed_canvas.draw_idle()
         except Exception as e:
             print(f"Error updating title: {e}")
+    
+
 
 
 if __name__ == "__main__":
