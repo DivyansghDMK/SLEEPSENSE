@@ -275,7 +275,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Documentation**: [Full Documentation](docs/)
 - **Issues**: [GitHub Issues](https://github.com/DivyansghDMK/SLEEPSENSE/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/DivyansghDMK/SLEEPSENSE/discussions)
-- **Email**: [Contact Support](mailto:support@sleepsense.pro)
+- **Email**: [Contact Support](mailto:divyansh)
 
 ---
 
