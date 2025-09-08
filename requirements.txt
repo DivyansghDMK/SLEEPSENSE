@@ -1,0 +1,23 @@
+# SleepSense Pro - Professional Sleep Analysis System
+# Modular Architecture Version
+
+# Core GUI Framework
+PyQt5>=5.15.0
+
+# Data Processing
+pandas>=1.3.0
+numpy>=1.21.0
+
+# Plotting and Visualization
+matplotlib>=3.5.0
+
+# PDF Generation
+reportlab>=3.6.0
+
+# Optional: Data encryption (if using external data manager)
+# cryptography>=3.4.0
+
+# Development and Testing (optional)
+# pytest>=6.0.0
+# black>=21.0.0
+# flake8>=3.9.0
